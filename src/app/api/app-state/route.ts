@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { parseAppSnapshot, type AppSnapshotV1 } from "@/lib/appSnapshot";
 import { appSnapshotTable } from "@/lib/db/schema";
 import { getDb, isDbConfigured } from "@/lib/db";
+import { isSyncCookieValid } from "@/lib/syncAuthServer";
 
 function unauthorized(): NextResponse {
   return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -15,10 +16,13 @@ function checkAuth(request: Request): NextResponse | null {
     return NextResponse.json({ error: "Sincronizacion no configurada en el servidor" }, { status: 503 });
   }
   const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${secret}`) {
-    return unauthorized();
+  if (auth === `Bearer ${secret}`) {
+    return null;
   }
-  return null;
+  if (isSyncCookieValid(request)) {
+    return null;
+  }
+  return unauthorized();
 }
 
 export async function GET(request: Request) {

@@ -1,15 +1,26 @@
 import type { AppSnapshotV1 } from "@/lib/appSnapshot";
 
+function authHeaders(secret: string): HeadersInit {
+  if (!secret) return {};
+  return { Authorization: `Bearer ${secret}` };
+}
+
 export async function fetchRemoteSnapshot(secret: string): Promise<{
   snapshot: AppSnapshotV1 | null;
   serverUpdatedAt?: number;
   error?: string;
+  needsAuth?: boolean;
 }> {
   const res = await fetch("/api/app-state", {
-    headers: { Authorization: `Bearer ${secret}` },
+    credentials: "include",
+    headers: authHeaders(secret),
   });
   if (res.status === 401) {
-    return { snapshot: null, error: "Clave incorrecta o no autorizada" };
+    return {
+      snapshot: null,
+      error: secret ? "Clave incorrecta o no autorizada" : "Sin sesion de sincronizacion",
+      needsAuth: true,
+    };
   }
   if (res.status === 503) {
     const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -22,7 +33,7 @@ export async function fetchRemoteSnapshot(secret: string): Promise<{
     snapshot: AppSnapshotV1 | null;
     serverUpdatedAt?: number;
   };
-  return { snapshot: data.snapshot ?? null, serverUpdatedAt: data.serverUpdatedAt };
+  return { snapshot: data.snapshot ?? null, serverUpdatedAt: data.serverUpdatedAt, needsAuth: false };
 }
 
 export async function pushRemoteSnapshot(
@@ -31,8 +42,9 @@ export async function pushRemoteSnapshot(
 ): Promise<{ ok: boolean; error?: string; updatedAt?: number }> {
   const res = await fetch("/api/app-state", {
     method: "PUT",
+    credentials: "include",
     headers: {
-      Authorization: `Bearer ${secret}`,
+      ...authHeaders(secret),
       "Content-Type": "application/json",
     },
     body: JSON.stringify(snapshot),

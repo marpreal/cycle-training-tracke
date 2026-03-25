@@ -111,6 +111,8 @@ export default function Home() {
   const [syncSecretDraft, setSyncSecretDraft] = useState("");
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
+  /** Incrementar tras POST /api/auth-sync para volver a intentar pull con cookie HttpOnly. */
+  const [syncSessionNonce, setSyncSessionNonce] = useState(0);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteApplyRef = useRef(false);
   const syncedDataSerializedRef = useRef<string | null>(null);
@@ -171,7 +173,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated) return;
-    if (!REMOTE_SYNC_UI || !syncSecret) {
+    if (!REMOTE_SYNC_UI) {
       queueMicrotask(() => setRemoteSyncOk(true));
       return;
     }
@@ -181,17 +183,25 @@ export default function Home() {
       setRemoteSyncMessage("");
     });
     void (async () => {
-      const { snapshot, error } = await fetchRemoteSnapshot(syncSecret);
+      const { snapshot, error, needsAuth } = await fetchRemoteSnapshot(syncSecret);
       if (cancelled) return;
       if (error) {
         queueMicrotask(() => {
-          setRemoteSyncMessage(error);
-          setRemoteSyncOk(false);
+          if (needsAuth) {
+            setRemoteSyncMessage(
+              "Sin sesion con el servidor: escribe la clave (APP_SYNC_SECRET) y pulsa Guardar clave. En ventana privada la cookie sirve aunque falle guardar aqui.",
+            );
+            setRemoteSyncOk(true);
+          } else {
+            setRemoteSyncMessage(error);
+            setRemoteSyncOk(false);
+          }
         });
         return;
       }
       queueMicrotask(() => {
         setRemoteSyncOk(true);
+        setRemoteSyncMessage("");
         if (!snapshot) return;
         const localTs = getLocalDataTimestamp();
         if (snapshot.updatedAt <= localTs) {
@@ -214,7 +224,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, syncSecret]);
+  }, [hasHydrated, syncSecret, syncSessionNonce]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -244,7 +254,7 @@ export default function Home() {
   }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, progressionHorizonWeeks]);
 
   useEffect(() => {
-    if (!hasHydrated || !REMOTE_SYNC_UI || !syncSecret || !remoteSyncOk) return;
+    if (!hasHydrated || !REMOTE_SYNC_UI || !remoteSyncOk) return;
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;
@@ -273,7 +283,6 @@ export default function Home() {
     };
   }, [
     hasHydrated,
-    syncSecret,
     remoteSyncOk,
     settings,
     trainingLog,
@@ -281,6 +290,7 @@ export default function Home() {
     profile,
     measurementLog,
     progressionHorizonWeeks,
+    syncSecret,
   ]);
 
   const latestClosedCurrentCycleLength = useMemo(() => {
@@ -637,9 +647,10 @@ export default function Home() {
         <section className="card">
           <h2 className="section-title">Copia en la nube</h2>
           <p className="muted text-sm">
-            Los datos siguen en este navegador (localStorage). Si despliegas el servidor con Turso y la misma
-            clave que en <code className="rounded bg-[var(--muted-bg)] px-1 text-xs">APP_SYNC_SECRET</code>, aqui
-            puedes guardar esa clave para subir y bajar todo automaticamente.
+            Los datos se guardan en este navegador (localStorage). En ventana privada o incognito suelen
+            borrarse al cerrar todas las pestanas: usa la clave y Guardar clave para que el servidor (Turso)
+            tenga copia; tambien se guarda una sesion en cookie para la API. La clave debe coincidir con{" "}
+            <code className="rounded bg-[var(--muted-bg)] px-1 text-xs">APP_SYNC_SECRET</code> en el servidor.
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <label className="field min-w-[12rem] flex-1">
@@ -656,13 +667,44 @@ export default function Home() {
               type="button"
               className="action-button action-end"
               onClick={() => {
-                const next = syncSecretDraft.trim();
-                setSyncSecret(next);
-                if (next) {
-                  localStorage.setItem(REMOTE_SYNC_SECRET_KEY, next);
-                } else {
-                  localStorage.removeItem(REMOTE_SYNC_SECRET_KEY);
-                }
+                void (async () => {
+                  const next = syncSecretDraft.trim();
+                  if (!next) {
+                    setSyncSecret("");
+                    try {
+                      localStorage.removeItem(REMOTE_SYNC_SECRET_KEY);
+                    } catch {
+                      /* noop */
+                    }
+                    setRemoteSyncMessage("");
+                    setSyncSessionNonce((n) => n + 1);
+                    return;
+                  }
+                  try {
+                    const res = await fetch("/api/auth-sync", {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ secret: next }),
+                    });
+                    const j = (await res.json().catch(() => ({}))) as { error?: string };
+                    if (!res.ok) {
+                      setRemoteSyncMessage(j.error ?? "No se pudo validar la clave");
+                      return;
+                    }
+                  } catch {
+                    setRemoteSyncMessage("No se pudo contactar con el servidor");
+                    return;
+                  }
+                  setSyncSecret(next);
+                  try {
+                    localStorage.setItem(REMOTE_SYNC_SECRET_KEY, next);
+                  } catch {
+                    /* incognito puede bloquear localStorage; la cookie HttpOnly ya autoriza la API */
+                  }
+                  setRemoteSyncMessage("");
+                  setSyncSessionNonce((n) => n + 1);
+                })();
               }}
             >
               Guardar clave
@@ -671,7 +713,7 @@ export default function Home() {
           {remoteSyncMessage ? (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
           ) : null}
-          {REMOTE_SYNC_UI && syncSecret && !remoteSyncOk ? (
+          {REMOTE_SYNC_UI && !remoteSyncOk ? (
             <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
           ) : null}
         </section>
