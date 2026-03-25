@@ -52,6 +52,8 @@ export const BODY_MEASUREMENTS_KEY = "body-measurements-v1";
 /** Clave compartida con `APP_SYNC_SECRET` del servidor (guardada en el navegador). */
 export const REMOTE_SYNC_SECRET_KEY = "remote-sync-secret-v1";
 
+export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
+
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */
 export const DEFAULT_ISO_DATE = "2000-01-01";
 

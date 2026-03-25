@@ -19,6 +19,10 @@ export type AppSnapshotV1 = {
   periodLog: PeriodRecord[];
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
+  /** Preferencias UI que antes no iban a localStorage. */
+  preferences?: {
+    progressionHorizonWeeks: number;
+  };
 };
 
 export function buildSnapshot(parts: {
@@ -27,6 +31,7 @@ export function buildSnapshot(parts: {
   periodLog: PeriodRecord[];
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
+  preferences?: AppSnapshotV1["preferences"];
 }): AppSnapshotV1 {
   return {
     v: 1,
@@ -110,6 +115,14 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!isUserProfile(o.profile)) return null;
   if (!Array.isArray(o.measurementLog) || !o.measurementLog.every(isBodyMeasurementRecord)) return null;
 
+  let preferences: AppSnapshotV1["preferences"];
+  if (o.preferences != null && typeof o.preferences === "object") {
+    const p = o.preferences as Record<string, unknown>;
+    if (typeof p.progressionHorizonWeeks === "number" && p.progressionHorizonWeeks > 0) {
+      preferences = { progressionHorizonWeeks: Math.round(p.progressionHorizonWeeks) };
+    }
+  }
+
   const trainingLog = o.trainingLog.map((log) => {
     const migrated = migrateExerciseLoads(log.exerciseLoads as unknown);
     return migrated !== undefined ? { ...log, exerciseLoads: migrated } : log;
@@ -125,7 +138,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
     profile = { ...profile, trainingBlockStart: todayIsoClient() };
   }
 
-  return {
+  const out: AppSnapshotV1 = {
     v: 1,
     updatedAt: o.updatedAt,
     settings,
@@ -134,4 +147,6 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
     profile,
     measurementLog: o.measurementLog,
   };
+  if (preferences) out.preferences = preferences;
+  return out;
 }

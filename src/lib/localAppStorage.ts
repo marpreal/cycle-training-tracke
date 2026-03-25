@@ -10,6 +10,7 @@ import {
   type PeriodSettings,
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
+  PROGRESSION_HORIZON_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
   type TrainingRecord,
@@ -82,4 +83,12 @@ export function loadBodyMeasurements(): BodyMeasurementRecord[] {
   if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(BODY_MEASUREMENTS_KEY);
   return raw ? (JSON.parse(raw) as BodyMeasurementRecord[]) : [];
+}
+
+export function loadProgressionHorizonWeeks(): number {
+  if (typeof window === "undefined") return 6;
+  const raw = localStorage.getItem(PROGRESSION_HORIZON_KEY);
+  if (!raw) return 6;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 6;
 }

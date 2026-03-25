@@ -42,6 +42,7 @@ import {
   DEFAULT_ISO_DATE,
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
+  PROGRESSION_HORIZON_KEY,
   REMOTE_SYNC_SECRET_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
@@ -50,10 +51,17 @@ import {
 import {
   loadBodyMeasurements,
   loadPeriodLog,
+  loadProgressionHorizonWeeks,
   loadSettings,
   loadTrainingLog,
   loadUserProfile,
 } from "@/lib/localAppStorage";
+import {
+  bumpLocalDataTimestamp,
+  getLocalDataTimestamp,
+  initLocalDataTimestampIfMissing,
+  setLocalDataTimestamp,
+} from "@/lib/localDataTimestamp";
 import { buildSnapshot } from "@/lib/appSnapshot";
 import { fetchRemoteSnapshot, pushRemoteSnapshot } from "@/lib/remoteAppState";
 
@@ -104,15 +112,19 @@ export default function Home() {
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteApplyRef = useRef(false);
+  const syncedDataSerializedRef = useRef<string | null>(null);
 
   useEffect(() => {
     const s = loadSettings();
     const prof = loadUserProfile();
     const today = todayIsoClient();
     queueMicrotask(() => {
+      initLocalDataTimestampIfMissing();
       const sec = localStorage.getItem(REMOTE_SYNC_SECRET_KEY) ?? "";
       setSyncSecret(sec);
       setSyncSecretDraft(sec);
+      setProgressionHorizonWeeks(loadProgressionHorizonWeeks());
       setSettings(s);
       setPeriodStartInput(s.lastPeriodStart);
       setTrainingLog(loadTrainingLog());
@@ -154,6 +166,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated) return;
+    localStorage.setItem(PROGRESSION_HORIZON_KEY, String(progressionHorizonWeeks));
+  }, [progressionHorizonWeeks, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
     if (!REMOTE_SYNC_UI || !syncSecret) {
       queueMicrotask(() => setRemoteSyncOk(true));
       return;
@@ -175,21 +192,56 @@ export default function Home() {
       }
       queueMicrotask(() => {
         setRemoteSyncOk(true);
-        if (snapshot) {
-          setSettings(snapshot.settings);
-          setPeriodStartInput(snapshot.settings.lastPeriodStart);
-          setTrainingLog(snapshot.trainingLog);
-          setPeriodLog(snapshot.periodLog);
-          setProfile(snapshot.profile);
-          setMeasurementWeight(String(snapshot.profile.weightKg));
-          setMeasurementLog(snapshot.measurementLog);
+        if (!snapshot) return;
+        const localTs = getLocalDataTimestamp();
+        if (snapshot.updatedAt <= localTs) {
+          return;
         }
+        remoteApplyRef.current = true;
+        setSettings(snapshot.settings);
+        setPeriodStartInput(snapshot.settings.lastPeriodStart);
+        setTrainingLog(snapshot.trainingLog);
+        setPeriodLog(snapshot.periodLog);
+        setProfile(snapshot.profile);
+        setMeasurementWeight(String(snapshot.profile.weightKg));
+        setMeasurementLog(snapshot.measurementLog);
+        if (snapshot.preferences?.progressionHorizonWeeks) {
+          setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
+        }
+        setLocalDataTimestamp(snapshot.updatedAt);
       });
     })();
     return () => {
       cancelled = true;
     };
   }, [hasHydrated, syncSecret]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    const pack = {
+      settings,
+      trainingLog,
+      periodLog,
+      profile,
+      measurementLog,
+      progressionHorizonWeeks,
+    };
+    const next = JSON.stringify(pack);
+    if (remoteApplyRef.current) {
+      syncedDataSerializedRef.current = next;
+      queueMicrotask(() => {
+        remoteApplyRef.current = false;
+      });
+      return;
+    }
+    if (syncedDataSerializedRef.current === null) {
+      syncedDataSerializedRef.current = next;
+      return;
+    }
+    if (syncedDataSerializedRef.current === next) return;
+    syncedDataSerializedRef.current = next;
+    bumpLocalDataTimestamp();
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, progressionHorizonWeeks]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_UI || !syncSecret || !remoteSyncOk) return;
@@ -202,20 +254,34 @@ export default function Home() {
         periodLog,
         profile,
         measurementLog,
+        preferences: { progressionHorizonWeeks },
       });
       void (async () => {
-        const { ok, error } = await pushRemoteSnapshot(syncSecret, snap);
+        const { ok, error, updatedAt } = await pushRemoteSnapshot(syncSecret, snap);
         if (!ok) {
           queueMicrotask(() => setRemoteSyncMessage(error ?? "Error al guardar en el servidor"));
         } else {
           queueMicrotask(() => setRemoteSyncMessage(""));
+          if (typeof updatedAt === "number") {
+            setLocalDataTimestamp(updatedAt);
+          }
         }
       })();
     }, 1200);
     return () => {
       if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     };
-  }, [hasHydrated, syncSecret, remoteSyncOk, settings, trainingLog, periodLog, profile, measurementLog]);
+  }, [
+    hasHydrated,
+    syncSecret,
+    remoteSyncOk,
+    settings,
+    trainingLog,
+    periodLog,
+    profile,
+    measurementLog,
+    progressionHorizonWeeks,
+  ]);
 
   const latestClosedCurrentCycleLength = useMemo(() => {
     const record = periodLog.find(

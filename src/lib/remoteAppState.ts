@@ -25,7 +25,10 @@ export async function fetchRemoteSnapshot(secret: string): Promise<{
   return { snapshot: data.snapshot ?? null, serverUpdatedAt: data.serverUpdatedAt };
 }
 
-export async function pushRemoteSnapshot(secret: string, snapshot: AppSnapshotV1): Promise<{ ok: boolean; error?: string }> {
+export async function pushRemoteSnapshot(
+  secret: string,
+  snapshot: AppSnapshotV1,
+): Promise<{ ok: boolean; error?: string; updatedAt?: number }> {
   const res = await fetch("/api/app-state", {
     method: "PUT",
     headers: {
@@ -44,5 +47,6 @@ export async function pushRemoteSnapshot(secret: string, snapshot: AppSnapshotV1
   if (!res.ok) {
     return { ok: false, error: "Error al guardar en el servidor" };
   }
-  return { ok: true };
+  const data = (await res.json().catch(() => ({}))) as { updatedAt?: number };
+  return { ok: true, updatedAt: data.updatedAt };
 }
