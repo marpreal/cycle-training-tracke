@@ -1,40 +1,33 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+import { auth } from "@/auth";
 import { parseAppSnapshot, type AppSnapshotV1 } from "@/lib/appSnapshot";
 import { appSnapshotTable } from "@/lib/db/schema";
 import { getDb, isDbConfigured } from "@/lib/db";
-import { isSyncCookieValid } from "@/lib/syncAuthServer";
 
-function unauthorized(): NextResponse {
-  return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-}
+export const runtime = "nodejs";
 
-function checkAuth(request: Request): NextResponse | null {
-  const secret = process.env.APP_SYNC_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "Sincronizacion no configurada en el servidor" }, { status: 503 });
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-  const auth = request.headers.get("authorization");
-  if (auth === `Bearer ${secret}`) {
-    return null;
-  }
-  if (isSyncCookieValid(request)) {
-    return null;
-  }
-  return unauthorized();
-}
-
-export async function GET(request: Request) {
-  const authErr = checkAuth(request);
-  if (authErr) return authErr;
   if (!isDbConfigured()) {
-    return NextResponse.json({ error: "Base de datos no configurada" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error:
+          "Turso no configurado. En Vercel anade TURSO_DATABASE_URL y TURSO_AUTH_TOKEN y redeploy.",
+      },
+      { status: 503 },
+    );
   }
+
+  const userId = session.user.id;
 
   try {
     const db = getDb();
-    const rows = await db.select().from(appSnapshotTable).where(eq(appSnapshotTable.id, 1)).limit(1);
+    const rows = await db.select().from(appSnapshotTable).where(eq(appSnapshotTable.userId, userId)).limit(1);
     if (rows.length === 0) {
       return NextResponse.json({ snapshot: null as AppSnapshotV1 | null });
     }
@@ -51,11 +44,21 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const authErr = checkAuth(request);
-  if (authErr) return authErr;
-  if (!isDbConfigured()) {
-    return NextResponse.json({ error: "Base de datos no configurada" }, { status: 503 });
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Turso no configurado. En Vercel anade TURSO_DATABASE_URL y TURSO_AUTH_TOKEN y redeploy.",
+      },
+      { status: 503 },
+    );
+  }
+
+  const userId = session.user.id;
 
   let body: unknown;
   try {
@@ -77,12 +80,12 @@ export async function PUT(request: Request) {
     await db
       .insert(appSnapshotTable)
       .values({
-        id: 1,
+        userId,
         payloadJson,
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: appSnapshotTable.id,
+        target: appSnapshotTable.userId,
         set: {
           payloadJson,
           updatedAt: now,

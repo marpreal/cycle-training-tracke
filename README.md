@@ -8,8 +8,8 @@ A visual dashboard to track:
 
 ## Where data lives
 
-- **By default**, everything is stored in the browser (`localStorage`), so it works offline and without an account.
-- **Optionally**, you can sync the same data to a **free hosted SQLite database** ([Turso](https://turso.tech)): the app keeps `localStorage` and also pushes/pulls a single JSON snapshot via `/api/app-state` using a shared secret (`APP_SYNC_SECRET`).
+- **By default**, everything is stored in the browser (`localStorage`), so it works offline.
+- **Optional cloud copy**: sign in with **Google** (Auth.js). Each user gets one JSON snapshot in [Turso](https://turso.tech) keyed by Google account id (`user_id`). The session cookie works in normal and private browsing until you close all private windows.
 
 ## Run locally
 
@@ -18,17 +18,23 @@ npm install
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000).
+Copy `.env.example` to `.env.local` and fill:
 
-Copy `.env.example` to `.env.local`. Remote sync is off until you set `NEXT_PUBLIC_REMOTE_SYNC=true` and configure Turso + `APP_SYNC_SECRET`.
+- `AUTH_SECRET` (e.g. `openssl rand -base64 32`)
+- `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` from [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (OAuth client type **Web**; add redirect `http://localhost:3000/api/auth/callback/google` and origin `http://localhost:3000`)
+- `AUTH_URL=http://localhost:3000`
+- `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`
+- `NEXT_PUBLIC_REMOTE_SYNC=true` (rebuild after changing)
 
-### Create the Turso table (once per database)
+### Turso schema
 
-With `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env.local`:
+With Turso env vars loaded:
 
 ```bash
 npm run db:push
 ```
+
+If you previously used the old single-row schema (`id` integer), you may need to drop the `app_snapshot` table in the Turso SQL console once, then run `db:push` again.
 
 ## Build check
 
@@ -39,10 +45,9 @@ npm run build
 
 ## Deploy to Vercel
 
-1. Push this folder to a GitHub repository.
-2. Go to [Vercel New Project](https://vercel.com/new).
-3. Import the repository and deploy.
-4. In the Vercel project settings, add the same environment variables as in `.env.example` (Turso URL/token, `APP_SYNC_SECRET`, and optionally `NEXT_PUBLIC_REMOTE_SYNC=true`).
-5. Run `npm run db:push` locally against your Turso credentials once so the `app_snapshot` table exists.
+1. Add the same variables as `.env.example` in **Project → Settings → Environment Variables** (Production).
+2. Set `AUTH_URL` to your site URL, e.g. `https://your-app.vercel.app`.
+3. In the Google OAuth client, add **Authorized redirect URI**: `https://your-app.vercel.app/api/auth/callback/google` and **JavaScript origin** your Vercel URL.
+4. Redeploy after changing `NEXT_PUBLIC_*` or `AUTH_*`.
 
-Edits in the UI stay in the browser; with remote sync enabled they are also stored on Turso.
+Open `/api/sync-status` on the deployed site to verify `dbConfigured`, `authSecretConfigured`, and `googleOAuthConfigured`.

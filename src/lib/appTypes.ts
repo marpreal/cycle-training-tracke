@@ -49,9 +49,6 @@ export const TRAINING_LOG_KEY = "training-log-v1";
 export const PERIOD_LOG_KEY = "period-log-v1";
 export const USER_PROFILE_KEY = "user-profile-v1";
 export const BODY_MEASUREMENTS_KEY = "body-measurements-v1";
-/** Clave compartida con `APP_SYNC_SECRET` del servidor (guardada en el navegador). */
-export const REMOTE_SYNC_SECRET_KEY = "remote-sync-secret-v1";
-
 export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
 
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */

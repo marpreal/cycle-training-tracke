@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { formatDate, getCurrentCycleDay, getNextPeriodDate, getPhaseInfo } from "@/lib/cycle";
 import {
   ACTIVITY_FACTORS,
@@ -43,7 +44,6 @@ import {
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
-  REMOTE_SYNC_SECRET_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
   USER_PROFILE_KEY,
@@ -76,6 +76,7 @@ function getTemplateById(id: string): TrainingDayTemplate | undefined {
 }
 
 export default function Home() {
+  const { data: session, status: sessionStatus } = useSession();
   const [hasHydrated, setHasHydrated] = useState(false);
   const [settings, setSettings] = useState<PeriodSettings>(defaultSettings);
   const [trainingLog, setTrainingLog] = useState<TrainingRecord[]>([]);
@@ -107,12 +108,8 @@ export default function Home() {
     () => buildWeekOptions(new Date(), 16)[0]?.id ?? "",
   );
   const [sessionPage, setSessionPage] = useState(0);
-  const [syncSecret, setSyncSecret] = useState("");
-  const [syncSecretDraft, setSyncSecretDraft] = useState("");
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
-  /** Incrementar tras POST /api/auth-sync para volver a intentar pull con cookie HttpOnly. */
-  const [syncSessionNonce, setSyncSessionNonce] = useState(0);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteApplyRef = useRef(false);
   const syncedDataSerializedRef = useRef<string | null>(null);
@@ -123,9 +120,6 @@ export default function Home() {
     const today = todayIsoClient();
     queueMicrotask(() => {
       initLocalDataTimestampIfMissing();
-      const sec = localStorage.getItem(REMOTE_SYNC_SECRET_KEY) ?? "";
-      setSyncSecret(sec);
-      setSyncSecretDraft(sec);
       setProgressionHorizonWeeks(loadProgressionHorizonWeeks());
       setSettings(s);
       setPeriodStartInput(s.lastPeriodStart);
@@ -177,20 +171,26 @@ export default function Home() {
       queueMicrotask(() => setRemoteSyncOk(true));
       return;
     }
+    if (sessionStatus === "loading") return;
+    if (sessionStatus === "unauthenticated" || !session?.user?.id) {
+      queueMicrotask(() => {
+        setRemoteSyncOk(true);
+        setRemoteSyncMessage("");
+      });
+      return;
+    }
     let cancelled = false;
     queueMicrotask(() => {
       setRemoteSyncOk(false);
       setRemoteSyncMessage("");
     });
     void (async () => {
-      const { snapshot, error, needsAuth } = await fetchRemoteSnapshot(syncSecret);
+      const { snapshot, error, needsAuth } = await fetchRemoteSnapshot();
       if (cancelled) return;
       if (error) {
         queueMicrotask(() => {
           if (needsAuth) {
-            setRemoteSyncMessage(
-              "Sin sesion con el servidor: escribe la clave (APP_SYNC_SECRET) y pulsa Guardar clave. En ventana privada la cookie sirve aunque falle guardar aqui.",
-            );
+            setRemoteSyncMessage("Sesion no valida: vuelve a entrar con Google.");
             setRemoteSyncOk(true);
           } else {
             setRemoteSyncMessage(error);
@@ -224,7 +224,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, syncSecret, syncSessionNonce]);
+  }, [hasHydrated, session?.user?.id, sessionStatus]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -255,6 +255,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_UI || !remoteSyncOk) return;
+    if (sessionStatus !== "authenticated" || !session?.user?.id) return;
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;
@@ -267,7 +268,7 @@ export default function Home() {
         preferences: { progressionHorizonWeeks },
       });
       void (async () => {
-        const { ok, error, updatedAt } = await pushRemoteSnapshot(syncSecret, snap);
+        const { ok, error, updatedAt } = await pushRemoteSnapshot(snap);
         if (!ok) {
           queueMicrotask(() => setRemoteSyncMessage(error ?? "Error al guardar en el servidor"));
         } else {
@@ -284,13 +285,14 @@ export default function Home() {
   }, [
     hasHydrated,
     remoteSyncOk,
+    session?.user?.id,
+    sessionStatus,
     settings,
     trainingLog,
     periodLog,
     profile,
     measurementLog,
     progressionHorizonWeeks,
-    syncSecret,
   ]);
 
   const latestClosedCurrentCycleLength = useMemo(() => {
@@ -645,75 +647,45 @@ export default function Home() {
 
       {REMOTE_SYNC_UI ? (
         <section className="card">
-          <h2 className="section-title">Copia en la nube</h2>
+          <h2 className="section-title">Cuenta y copia en la nube</h2>
           <p className="muted text-sm">
-            Los datos se guardan en este navegador (localStorage). En ventana privada o incognito suelen
-            borrarse al cerrar todas las pestanas: usa la clave y Guardar clave para que el servidor (Turso)
-            tenga copia; tambien se guarda una sesion en cookie para la API. La clave debe coincidir con{" "}
-            <code className="rounded bg-[var(--muted-bg)] px-1 text-xs">APP_SYNC_SECRET</code> en el servidor.
+            Los datos siguen en este navegador (localStorage). Para guardarlos en el servidor (Turso) vinculados
+            a tu usuario, entra con Google: la sesion usa una cookie de la app (tambien en incognito mientras no
+            cierres todas las ventanas privadas).
           </p>
-          <div className="mt-3 flex flex-wrap items-end gap-2">
-            <label className="field min-w-[12rem] flex-1">
-              <span>Clave de sincronizacion</span>
-              <input
-                type="password"
-                autoComplete="off"
-                value={syncSecretDraft}
-                onChange={(event) => setSyncSecretDraft(event.target.value)}
-                placeholder="La misma que APP_SYNC_SECRET en el servidor"
-              />
-            </label>
-            <button
-              type="button"
-              className="action-button action-end"
-              onClick={() => {
-                void (async () => {
-                  const next = syncSecretDraft.trim();
-                  if (!next) {
-                    setSyncSecret("");
-                    try {
-                      localStorage.removeItem(REMOTE_SYNC_SECRET_KEY);
-                    } catch {
-                      /* noop */
-                    }
-                    setRemoteSyncMessage("");
-                    setSyncSessionNonce((n) => n + 1);
-                    return;
-                  }
-                  try {
-                    const res = await fetch("/api/auth-sync", {
-                      method: "POST",
-                      credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ secret: next }),
-                    });
-                    const j = (await res.json().catch(() => ({}))) as { error?: string };
-                    if (!res.ok) {
-                      setRemoteSyncMessage(j.error ?? "No se pudo validar la clave");
-                      return;
-                    }
-                  } catch {
-                    setRemoteSyncMessage("No se pudo contactar con el servidor");
-                    return;
-                  }
-                  setSyncSecret(next);
-                  try {
-                    localStorage.setItem(REMOTE_SYNC_SECRET_KEY, next);
-                  } catch {
-                    /* incognito puede bloquear localStorage; la cookie HttpOnly ya autoriza la API */
-                  }
-                  setRemoteSyncMessage("");
-                  setSyncSessionNonce((n) => n + 1);
-                })();
-              }}
-            >
-              Guardar clave
-            </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {sessionStatus === "loading" ? (
+              <p className="muted text-sm">Comprobando sesion...</p>
+            ) : sessionStatus === "unauthenticated" ? (
+              <button
+                type="button"
+                className="action-button action-end"
+                onClick={() => void signIn("google")}
+              >
+                Entrar con Google
+              </button>
+            ) : (
+              <>
+                <p className="text-sm">
+                  <span className="font-medium text-foreground">{session?.user?.name ?? "Sesion"}</span>
+                  {session?.user?.email ? (
+                    <span className="muted"> · {session.user.email}</span>
+                  ) : null}
+                </p>
+                <button
+                  type="button"
+                  className="action-button action-end"
+                  onClick={() => void signOut({ callbackUrl: "/" })}
+                >
+                  Salir
+                </button>
+              </>
+            )}
           </div>
           {remoteSyncMessage ? (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
           ) : null}
-          {REMOTE_SYNC_UI && !remoteSyncOk ? (
+          {REMOTE_SYNC_UI && sessionStatus === "authenticated" && !remoteSyncOk ? (
             <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
           ) : null}
         </section>
