@@ -14,6 +14,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   debug: process.env.NODE_ENV === "development",
   callbacks: {
+    jwt({ token, profile }) {
+      if (profile?.sub) {
+        token.sub = profile.sub;
+      }
+      return token;
+    },
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
