@@ -718,6 +718,27 @@ export default function Home() {
     return loadDetailByExercise[exerciseName] === true;
   }
 
+  const trainingStats = useMemo(() => {
+    if (!hasHydrated) return { week: 0, month: 0, year: 0 };
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(y, m, now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const mondayIso = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    const yearPrefix = `${y}-`;
+    const monthPrefix = `${y}-${String(m + 1).padStart(2, "0")}-`;
+    let week = 0, month = 0, year = 0;
+    for (const entry of trainingLog) {
+      if (entry.date >= mondayIso) week++;
+      if (entry.date.startsWith(monthPrefix)) month++;
+      if (entry.date.startsWith(yearPrefix)) year++;
+    }
+    return { week, month, year };
+  }, [trainingLog, hasHydrated]);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
       <header className="card">
@@ -1036,6 +1057,21 @@ export default function Home() {
               ))
             )}
           </div>
+        </article>
+      </section>
+
+      <section className={`grid gap-4 md:grid-cols-3 ${activeView === "entreno" ? "" : "hidden"}`}>
+        <article className="metric-card">
+          <p className="metric-label">Esta semana</p>
+          <p className="metric-value">{hasHydrated ? trainingStats.week : "—"}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Este mes</p>
+          <p className="metric-value">{hasHydrated ? trainingStats.month : "—"}</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Este año</p>
+          <p className="metric-value">{hasHydrated ? trainingStats.year : "—"}</p>
         </article>
       </section>
 

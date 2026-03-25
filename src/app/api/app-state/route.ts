@@ -1,4 +1,5 @@
-import { eq, sql } from "drizzle-orm";
+import { createClient } from "@libsql/client";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
@@ -76,11 +77,15 @@ export async function PUT(request: Request) {
   const payloadJson = JSON.stringify({ ...snapshot, updatedAt: now.getTime() });
 
   try {
-    const db = getDb();
     const tsMs = now.getTime();
-    await db.run(
-      sql`INSERT OR REPLACE INTO app_snapshot (user_id, payload_json, updated_at) VALUES (${userId}, ${payloadJson}, ${tsMs})`,
-    );
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN!,
+    });
+    await client.execute({
+      sql: "INSERT OR REPLACE INTO app_snapshot (user_id, payload_json, updated_at) VALUES (?, ?, ?)",
+      args: [userId, payloadJson, tsMs],
+    });
     return NextResponse.json({ ok: true, updatedAt: tsMs });
   } catch (e) {
     console.error(e);
