@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { formatDate, getCurrentCycleDay, getNextPeriodDate, getPhaseInfo } from "@/lib/cycle";
 import {
   ACTIVITY_FACTORS,
@@ -24,150 +24,44 @@ import {
   getLoadTrackedExercises,
   LOAD_SET_COUNT,
   maxWeightInEntry,
-  migrateExerciseLoads,
   type ExerciseLoadEntry,
 } from "@/lib/trainingLoads";
 import { buildWeekOptions } from "@/lib/sessionFilters";
+import type {
+  ActiveView,
+  BodyMeasurementRecord,
+  PeriodRecord,
+  PeriodSettings,
+  TrainingRecord,
+  UserProfile,
+} from "@/lib/appTypes";
+import {
+  BODY_MEASUREMENTS_KEY,
+  defaultProfile,
+  defaultSettings,
+  DEFAULT_ISO_DATE,
+  PERIOD_LOG_KEY,
+  PERIOD_SETTINGS_KEY,
+  REMOTE_SYNC_SECRET_KEY,
+  todayIsoClient,
+  TRAINING_LOG_KEY,
+  USER_PROFILE_KEY,
+} from "@/lib/appTypes";
+import {
+  loadBodyMeasurements,
+  loadPeriodLog,
+  loadSettings,
+  loadTrainingLog,
+  loadUserProfile,
+} from "@/lib/localAppStorage";
+import { buildSnapshot } from "@/lib/appSnapshot";
+import { fetchRemoteSnapshot, pushRemoteSnapshot } from "@/lib/remoteAppState";
 
 const SESSION_PAGE_SIZE = 5;
 
-type PeriodSettings = {
-  lastPeriodStart: string;
-  cycleLength: number;
-  periodLength: number;
-  isPeriodOngoing: boolean;
-};
-
-type TrainingRecord = {
-  id: string;
-  date: string;
-  templateId: string;
-  effort: 1 | 2 | 3 | 4 | 5;
-  notes: string;
-  exerciseLoads?: ExerciseLoadEntry[];
-};
-
-type PeriodRecord = {
-  id: string;
-  startDate: string;
-  endDate: string | null;
-};
-
-type BodyMeasurementRecord = {
-  id: string;
-  date: string;
-  weightKg: number | null;
-  waistCm: number | null;
-  hipCm: number | null;
-  thighCm: number | null;
-  notes: string;
-};
-
-type ActiveView = "regla" | "entreno" | "nutricion";
-
-const PERIOD_SETTINGS_KEY = "period-settings-v1";
-const TRAINING_LOG_KEY = "training-log-v1";
-const PERIOD_LOG_KEY = "period-log-v1";
-const USER_PROFILE_KEY = "user-profile-v1";
-const BODY_MEASUREMENTS_KEY = "body-measurements-v1";
-
-type UserProfile = {
-  age: number;
-  heightCm: number;
-  weightKg: number;
-  activity: ActivityLevel;
-  /** Desde esta fecha se cuentan bloques de ~2 semanas para subir carga. */
-  trainingBlockStart: string;
-};
-
-/** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */
-const DEFAULT_ISO_DATE = "2000-01-01";
-
-function todayIsoClient(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
-const defaultProfile: UserProfile = {
-  age: 28,
-  heightCm: 160,
-  weightKg: 56,
-  activity: "moderate",
-  trainingBlockStart: DEFAULT_ISO_DATE,
-};
-
-const defaultSettings: PeriodSettings = {
-  lastPeriodStart: DEFAULT_ISO_DATE,
-  cycleLength: 28,
-  periodLength: 5,
-  isPeriodOngoing: false,
-};
-
-function loadSettings(): PeriodSettings {
-  if (typeof window === "undefined") return defaultSettings;
-  const savedSettings = localStorage.getItem(PERIOD_SETTINGS_KEY);
-  if (!savedSettings) {
-    return { ...defaultSettings, lastPeriodStart: todayIsoClient() };
-  }
-
-  const parsed = JSON.parse(savedSettings) as Partial<PeriodSettings>;
-  let lastPeriodStart = parsed.lastPeriodStart ?? defaultSettings.lastPeriodStart;
-  if (!lastPeriodStart || lastPeriodStart === DEFAULT_ISO_DATE) {
-    lastPeriodStart = todayIsoClient();
-  }
-  return {
-    ...defaultSettings,
-    ...parsed,
-    lastPeriodStart,
-    isPeriodOngoing: Boolean(parsed.isPeriodOngoing),
-  };
-}
-
-function loadTrainingLog(): TrainingRecord[] {
-  if (typeof window === "undefined") return [];
-  const savedLog = localStorage.getItem(TRAINING_LOG_KEY);
-  if (!savedLog) return [];
-  const parsed = JSON.parse(savedLog) as TrainingRecord[];
-  return parsed.map((log) => {
-    const migrated = migrateExerciseLoads(log.exerciseLoads as unknown);
-    return migrated !== undefined ? { ...log, exerciseLoads: migrated } : log;
-  });
-}
-
-function loadPeriodLog(): PeriodRecord[] {
-  if (typeof window === "undefined") return [];
-  const savedLog = localStorage.getItem(PERIOD_LOG_KEY);
-  return savedLog ? (JSON.parse(savedLog) as PeriodRecord[]) : [];
-}
-
-function loadUserProfile(): UserProfile {
-  if (typeof window === "undefined") return defaultProfile;
-  const raw = localStorage.getItem(USER_PROFILE_KEY);
-  if (!raw) {
-    return { ...defaultProfile, trainingBlockStart: todayIsoClient() };
-  }
-  const parsed = JSON.parse(raw) as Partial<UserProfile>;
-  const activity =
-    parsed.activity && parsed.activity in ACTIVITY_FACTORS ? parsed.activity : defaultProfile.activity;
-  let trainingBlockStart = parsed.trainingBlockStart || defaultProfile.trainingBlockStart;
-  if (!trainingBlockStart || trainingBlockStart === DEFAULT_ISO_DATE) {
-    trainingBlockStart = todayIsoClient();
-  }
-  return {
-    ...defaultProfile,
-    ...parsed,
-    age: Number(parsed.age) || defaultProfile.age,
-    heightCm: Number(parsed.heightCm) || defaultProfile.heightCm,
-    weightKg: Number(parsed.weightKg) || defaultProfile.weightKg,
-    activity,
-    trainingBlockStart,
-  };
-}
-
-function loadBodyMeasurements(): BodyMeasurementRecord[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(BODY_MEASUREMENTS_KEY);
-  return raw ? (JSON.parse(raw) as BodyMeasurementRecord[]) : [];
-}
+const REMOTE_SYNC_UI =
+  typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
+  process.env.NEXT_PUBLIC_REMOTE_SYNC === "true";
 
 function getTemplateById(id: string): TrainingDayTemplate | undefined {
   return trainingTemplates.find((template) => template.id === id);
@@ -205,12 +99,20 @@ export default function Home() {
     () => buildWeekOptions(new Date(), 16)[0]?.id ?? "",
   );
   const [sessionPage, setSessionPage] = useState(0);
+  const [syncSecret, setSyncSecret] = useState("");
+  const [syncSecretDraft, setSyncSecretDraft] = useState("");
+  const [remoteSyncOk, setRemoteSyncOk] = useState(false);
+  const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const s = loadSettings();
     const prof = loadUserProfile();
     const today = todayIsoClient();
     queueMicrotask(() => {
+      const sec = localStorage.getItem(REMOTE_SYNC_SECRET_KEY) ?? "";
+      setSyncSecret(sec);
+      setSyncSecretDraft(sec);
       setSettings(s);
       setPeriodStartInput(s.lastPeriodStart);
       setTrainingLog(loadTrainingLog());
@@ -249,6 +151,71 @@ export default function Home() {
     if (!hasHydrated) return;
     localStorage.setItem(BODY_MEASUREMENTS_KEY, JSON.stringify(measurementLog));
   }, [measurementLog, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (!REMOTE_SYNC_UI || !syncSecret) {
+      queueMicrotask(() => setRemoteSyncOk(true));
+      return;
+    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      setRemoteSyncOk(false);
+      setRemoteSyncMessage("");
+    });
+    void (async () => {
+      const { snapshot, error } = await fetchRemoteSnapshot(syncSecret);
+      if (cancelled) return;
+      if (error) {
+        queueMicrotask(() => {
+          setRemoteSyncMessage(error);
+          setRemoteSyncOk(false);
+        });
+        return;
+      }
+      queueMicrotask(() => {
+        setRemoteSyncOk(true);
+        if (snapshot) {
+          setSettings(snapshot.settings);
+          setPeriodStartInput(snapshot.settings.lastPeriodStart);
+          setTrainingLog(snapshot.trainingLog);
+          setPeriodLog(snapshot.periodLog);
+          setProfile(snapshot.profile);
+          setMeasurementWeight(String(snapshot.profile.weightKg));
+          setMeasurementLog(snapshot.measurementLog);
+        }
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasHydrated, syncSecret]);
+
+  useEffect(() => {
+    if (!hasHydrated || !REMOTE_SYNC_UI || !syncSecret || !remoteSyncOk) return;
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = setTimeout(() => {
+      pushTimerRef.current = null;
+      const snap = buildSnapshot({
+        settings,
+        trainingLog,
+        periodLog,
+        profile,
+        measurementLog,
+      });
+      void (async () => {
+        const { ok, error } = await pushRemoteSnapshot(syncSecret, snap);
+        if (!ok) {
+          queueMicrotask(() => setRemoteSyncMessage(error ?? "Error al guardar en el servidor"));
+        } else {
+          queueMicrotask(() => setRemoteSyncMessage(""));
+        }
+      })();
+    }, 1200);
+    return () => {
+      if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    };
+  }, [hasHydrated, syncSecret, remoteSyncOk, settings, trainingLog, periodLog, profile, measurementLog]);
 
   const latestClosedCurrentCycleLength = useMemo(() => {
     const record = periodLog.find(
@@ -599,6 +566,50 @@ export default function Home() {
           Peso y nutricion
         </button>
       </section>
+
+      {REMOTE_SYNC_UI ? (
+        <section className="card">
+          <h2 className="section-title">Copia en la nube</h2>
+          <p className="muted text-sm">
+            Los datos siguen en este navegador (localStorage). Si despliegas el servidor con Turso y la misma
+            clave que en <code className="rounded bg-[var(--muted-bg)] px-1 text-xs">APP_SYNC_SECRET</code>, aqui
+            puedes guardar esa clave para subir y bajar todo automaticamente.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="field min-w-[12rem] flex-1">
+              <span>Clave de sincronizacion</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={syncSecretDraft}
+                onChange={(event) => setSyncSecretDraft(event.target.value)}
+                placeholder="La misma que APP_SYNC_SECRET en el servidor"
+              />
+            </label>
+            <button
+              type="button"
+              className="action-button action-end"
+              onClick={() => {
+                const next = syncSecretDraft.trim();
+                setSyncSecret(next);
+                if (next) {
+                  localStorage.setItem(REMOTE_SYNC_SECRET_KEY, next);
+                } else {
+                  localStorage.removeItem(REMOTE_SYNC_SECRET_KEY);
+                }
+              }}
+            >
+              Guardar clave
+            </button>
+          </div>
+          {remoteSyncMessage ? (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
+          ) : null}
+          {REMOTE_SYNC_UI && syncSecret && !remoteSyncOk ? (
+            <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className={`grid gap-4 md:grid-cols-4 ${activeView === "regla" ? "" : "hidden"}`}>
         <article className="metric-card">
