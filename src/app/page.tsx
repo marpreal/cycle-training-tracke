@@ -108,7 +108,16 @@ export default function Home() {
   const [measurementHip, setMeasurementHip] = useState("");
   const [measurementThigh, setMeasurementThigh] = useState("");
   const [measurementNotes, setMeasurementNotes] = useState("");
-  const [activeView, setActiveView] = useState<ActiveView>("regla");
+  const [activeView, setActiveViewRaw] = useState<ActiveView>(() => {
+    if (typeof window === "undefined") return "regla";
+    const saved = localStorage.getItem("active-view-v1");
+    if (saved === "regla" || saved === "entreno" || saved === "nutricion") return saved;
+    return "regla";
+  });
+  const setActiveView = (v: ActiveView) => {
+    setActiveViewRaw(v);
+    localStorage.setItem("active-view-v1", v);
+  };
   const [sessionFilterType, setSessionFilterType] = useState<"all" | "day" | "range" | "week">("all");
   const [sessionFilterDay, setSessionFilterDay] = useState(DEFAULT_ISO_DATE);
   const [sessionRangeFrom, setSessionRangeFrom] = useState(DEFAULT_ISO_DATE);
