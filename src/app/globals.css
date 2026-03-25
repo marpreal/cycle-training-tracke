@@ -133,6 +133,70 @@ textarea {
   align-self: flex-start;
 }
 
+.account-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  background: #fafafa;
+}
+
+.account-bar-btn {
+  border: 1px solid #fbcfe8;
+  background: #fff;
+  color: #9d174d;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-bar-btn:hover {
+  background: #fdf2f8;
+}
+
+.account-bar-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.flow-button {
+  border: 1px solid #fbcfe8;
+  background: #fff;
+  color: #9d174d;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.flow-button:hover {
+  background: #fdf2f8;
+}
+
+.flow-button.is-active {
+  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.flow-tag {
+  display: inline-block;
+  background: #fdf2f8;
+  color: #9d174d;
+  border: 1px solid #fbcfe8;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 .view-tabs {
   display: flex;
   gap: 0.5rem;
@@ -408,4 +472,62 @@ textarea {
 
 .log-notes {
   margin-top: 0.35rem;
+}
+
+.session-card {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.session-card.is-editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.15);
+}
+
+.session-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.session-card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.session-card-date {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.session-card-effort {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.session-card-notes {
+  font-size: 0.85rem;
+  color: var(--foreground);
+  margin-top: 0.15rem;
+}
+
+.session-card-loads {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.session-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }

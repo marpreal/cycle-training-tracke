@@ -27,15 +27,17 @@ import {
   maxWeightInEntry,
   type ExerciseLoadEntry,
 } from "@/lib/trainingLoads";
-import { buildWeekOptions } from "@/lib/sessionFilters";
+// sessionFilters no longer needed — month picker replaced week options
 import type {
   ActiveView,
   BodyMeasurementRecord,
+  FlowLevel,
   PeriodRecord,
   PeriodSettings,
   TrainingRecord,
   UserProfile,
 } from "@/lib/appTypes";
+import { FLOW_LABELS } from "@/lib/appTypes";
 import {
   BODY_MEASUREMENTS_KEY,
   defaultProfile,
@@ -92,6 +94,7 @@ export default function Home() {
   const [periodLog, setPeriodLog] = useState<PeriodRecord[]>([]);
   const [periodStartInput, setPeriodStartInput] = useState(DEFAULT_ISO_DATE);
   const [periodEndInput, setPeriodEndInput] = useState(DEFAULT_ISO_DATE);
+  const [flowDateInput, setFlowDateInput] = useState(DEFAULT_ISO_DATE);
   const [newLogDate, setNewLogDate] = useState(DEFAULT_ISO_DATE);
   const [newLogTemplate, setNewLogTemplate] = useState(trainingTemplates[0].id);
   const [newLogEffort, setNewLogEffort] = useState<TrainingRecord["effort"]>(3);
@@ -108,24 +111,25 @@ export default function Home() {
   const [measurementHip, setMeasurementHip] = useState("");
   const [measurementThigh, setMeasurementThigh] = useState("");
   const [measurementNotes, setMeasurementNotes] = useState("");
-  const [activeView, setActiveViewRaw] = useState<ActiveView>(() => {
-    if (typeof window === "undefined") return "regla";
+  const [activeView, setActiveViewRaw] = useState<ActiveView>("regla");
+  useEffect(() => {
     const saved = localStorage.getItem("active-view-v1");
-    if (saved === "regla" || saved === "entreno" || saved === "nutricion") return saved;
-    return "regla";
-  });
+    if (saved === "regla" || saved === "entreno" || saved === "nutricion") {
+      setActiveViewRaw(saved);
+    }
+  }, []);
   const setActiveView = (v: ActiveView) => {
     setActiveViewRaw(v);
     localStorage.setItem("active-view-v1", v);
   };
-  const [sessionFilterType, setSessionFilterType] = useState<"all" | "day" | "range" | "week">("all");
-  const [sessionFilterDay, setSessionFilterDay] = useState(DEFAULT_ISO_DATE);
-  const [sessionRangeFrom, setSessionRangeFrom] = useState(DEFAULT_ISO_DATE);
-  const [sessionRangeTo, setSessionRangeTo] = useState(DEFAULT_ISO_DATE);
-  const [sessionWeekChoiceId, setSessionWeekChoiceId] = useState(
-    () => buildWeekOptions(new Date(), 16)[0]?.id ?? "",
-  );
+  const [sessionFilterMonth, setSessionFilterMonth] = useState("2000-01");
+  useEffect(() => {
+    const d = new Date();
+    setSessionFilterMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }, []);
+  const [sessionFilterAll, setSessionFilterAll] = useState(false);
   const [sessionPage, setSessionPage] = useState(0);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
   /** Solo true mientras dura el GET /api/app-state (evita "Sincronizando..." eterno si hay error). */
@@ -164,6 +168,7 @@ export default function Home() {
       setMeasurementWeight(String(prof.weightKg));
       setMeasurementLog(loadBodyMeasurements());
       setPeriodEndInput(today);
+      setFlowDateInput(today);
       setNewLogDate(today);
       setMeasurementDate(today);
       setHasHydrated(true);
@@ -385,39 +390,17 @@ export default function Home() {
     [nextPeriod],
   );
 
-  const sortedLogs = useMemo(
-    () => [...trainingLog].sort((a, b) => b.date.localeCompare(a.date)),
-    [trainingLog],
-  );
-
-  const weekOptions = useMemo(() => buildWeekOptions(new Date(), 16), []);
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    for (const log of trainingLog) set.add(log.date.slice(0, 7));
+    return [...set].sort().reverse();
+  }, [trainingLog]);
 
   const filteredTrainingLogs = useMemo(() => {
     const list = [...trainingLog].sort((a, b) => b.date.localeCompare(a.date));
-    if (sessionFilterType === "day") {
-      return list.filter((l) => l.date === sessionFilterDay);
-    }
-    if (sessionFilterType === "range") {
-      if (sessionRangeFrom > sessionRangeTo) return [];
-      return list.filter((l) => l.date >= sessionRangeFrom && l.date <= sessionRangeTo);
-    }
-    if (sessionFilterType === "week") {
-      const wk = sessionWeekChoiceId
-        ? weekOptions.find((o) => o.id === sessionWeekChoiceId)
-        : weekOptions[0];
-      if (!wk) return list;
-      return list.filter((l) => l.date >= wk.start && l.date <= wk.end);
-    }
-    return list;
-  }, [
-    trainingLog,
-    sessionFilterType,
-    sessionFilterDay,
-    sessionRangeFrom,
-    sessionRangeTo,
-    sessionWeekChoiceId,
-    weekOptions,
-  ]);
+    if (sessionFilterAll) return list;
+    return list.filter((l) => l.date.startsWith(sessionFilterMonth));
+  }, [trainingLog, sessionFilterAll, sessionFilterMonth]);
 
   const sessionTotalPages = Math.max(1, Math.ceil(filteredTrainingLogs.length / SESSION_PAGE_SIZE));
   const sessionPageClamped = Math.min(sessionPage, sessionTotalPages - 1);
@@ -511,7 +494,7 @@ export default function Home() {
   }, [settings.isPeriodOngoing, settings.lastPeriodStart]);
 
   function parseOptionalNumber(value: string): number | null {
-    const clean = value.trim();
+    const clean = value.trim().replace(",", ".");
     if (!clean) return null;
     const parsed = Number(clean);
     return Number.isFinite(parsed) ? parsed : null;
@@ -566,6 +549,62 @@ export default function Home() {
 
   function removeTrainingLog(id: string) {
     setTrainingLog((current) => current.filter((item) => item.id !== id));
+    if (editingLogId === id) setEditingLogId(null);
+  }
+
+  function startEditLog(log: TrainingRecord) {
+    setNewLogDate(log.date);
+    setNewLogTemplate(log.templateId);
+    setNewLogEffort(log.effort);
+    setNewLogNotes(log.notes);
+    const loads: Record<string, { w: string; r: string }[]> = {};
+    const details: Record<string, boolean> = {};
+    for (const entry of log.exerciseLoads ?? []) {
+      const rows = entry.sets.map((s) => ({ w: s.weightKg > 0 ? String(s.weightKg) : "", r: s.reps > 0 ? String(s.reps) : "" }));
+      while (rows.length < LOAD_SET_COUNT) rows.push({ w: "", r: "" });
+      loads[entry.exerciseName] = rows.slice(0, LOAD_SET_COUNT);
+      const allSame = rows.length >= 2 && rows.every((r) => r.w === rows[0].w && r.r === rows[0].r);
+      details[entry.exerciseName] = !allSame;
+    }
+    setNewLogLoads(loads);
+    setLoadDetailByExercise(details);
+    setEditingLogId(log.id);
+  }
+
+  function saveEditLog() {
+    if (!editingLogId) return;
+    const tracked = selectedTemplate ? getLoadTrackedExercises(selectedTemplate) : [];
+    const parsedLoads: ExerciseLoadEntry[] = [];
+    for (const ex of tracked) {
+      const rows = getFormSetsForExercise(ex.name);
+      const sets: { weightKg: number; reps: number }[] = [];
+      for (let i = 0; i < LOAD_SET_COUNT; i += 1) {
+        const w = parseOptionalNumber(rows[i]?.w ?? "");
+        const r = parseOptionalNumber(rows[i]?.r ?? "");
+        if ((w != null && w > 0) || (r != null && r > 0)) {
+          sets.push({ weightKg: w ?? 0, reps: r ? Math.round(r) : 0 });
+        }
+      }
+      if (sets.length > 0) parsedLoads.push({ exerciseName: ex.name, sets });
+    }
+    setTrainingLog((current) =>
+      current.map((item) =>
+        item.id === editingLogId
+          ? { ...item, date: newLogDate, templateId: newLogTemplate, effort: newLogEffort, notes: newLogNotes.trim(), exerciseLoads: parsedLoads }
+          : item,
+      ),
+    );
+    setEditingLogId(null);
+    setNewLogNotes("");
+    setNewLogLoads({});
+    setLoadDetailByExercise({});
+  }
+
+  function cancelEdit() {
+    setEditingLogId(null);
+    setNewLogNotes("");
+    setNewLogLoads({});
+    setLoadDetailByExercise({});
   }
 
   function registerPeriodStart(date: string) {
@@ -573,6 +612,7 @@ export default function Home() {
       id: crypto.randomUUID(),
       startDate: date,
       endDate: null,
+      flow: [],
     };
     setPeriodLog((current) => [newRecord, ...current.map((item) => (item.endDate ? item : { ...item, endDate: date }))]);
     setSettings((current) => ({
@@ -593,18 +633,32 @@ export default function Home() {
     setSettings((current) => ({ ...current, isPeriodOngoing: false }));
   }
 
-  function updatePeriodOngoing(value: boolean) {
-    if (value) {
-      const hasOpenRecord = periodLog.some((item) => item.endDate === null);
-      if (!hasOpenRecord) {
-        registerPeriodStart(new Date().toISOString().split("T")[0]);
-      } else {
-        setSettings((current) => ({ ...current, isPeriodOngoing: true }));
-      }
-      return;
-    }
-    endCurrentPeriod(periodEndInput);
+  function addFlowEntry(date: string, level: FlowLevel) {
+    setPeriodLog((current) => {
+      const openIndex = current.findIndex((item) => item.endDate === null);
+      if (openIndex === -1) return current;
+      const record = current[openIndex];
+      const flow = (record.flow ?? []).filter((f) => f.date !== date);
+      flow.push({ date, level });
+      flow.sort((a, b) => a.date.localeCompare(b.date));
+      return current.map((item, idx) => (idx === openIndex ? { ...item, flow } : item));
+    });
   }
+
+  function removeFlowEntry(date: string) {
+    setPeriodLog((current) => {
+      const openIndex = current.findIndex((item) => item.endDate === null);
+      if (openIndex === -1) return current;
+      const record = current[openIndex];
+      const flow = (record.flow ?? []).filter((f) => f.date !== date);
+      return current.map((item, idx) => (idx === openIndex ? { ...item, flow } : item));
+    });
+  }
+
+  const openPeriod = useMemo(
+    () => periodLog.find((item) => item.endDate === null) ?? null,
+    [periodLog],
+  );
 
   function removePeriodRecord(id: string) {
     setPeriodLog((current) => current.filter((item) => item.id !== id));
@@ -698,105 +752,34 @@ export default function Home() {
         </button>
       </section>
 
-      <section className="card">
-        <h2 className="section-title">Cuenta y copia en la nube</h2>
-        <p className="muted text-sm">
-          Los datos siguen en este navegador (localStorage). Para guardarlos en el servidor (Turso) vinculados a
-          tu usuario, entra con Google: la sesion usa una cookie de la app (tambien en incognito mientras no cierres
-          todas las ventanas privadas).
-        </p>
-        {!REMOTE_SYNC_UI ? (
-          <p className="muted mt-2 text-xs">
-            En el servidor (p. ej. Vercel) añade <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC=true</code> y
-            redeploy para activar la subida/bajada a Turso; el boton de Google se muestra igual en local y en la
-            web.
-          </p>
-        ) : null}
-        {REMOTE_SYNC_UI && !REMOTE_SYNC_NETWORK ? (
-          <p className="muted mt-2 text-xs">
-            En <code className="text-xs">next dev</code> la sync con el servidor esta desactivada por defecto (evita
-            cuelgues al abrir localhost). Para probar Turso en local, pon{" "}
-            <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC_DEV=true</code> en <code className="text-xs">.env.local</code>{" "}
-            y reinicia. En build de produccion la sync sigue activa con solo{" "}
-            <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC=true</code>.
-          </p>
-        ) : null}
-        {authGoogleConfigured === false ? (
-          <div className="mt-3 rounded-lg border border-amber-600/40 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-100">
-            <p className="font-medium">Faltan credenciales de Google en el servidor</p>
-            <p className="mt-2 text-xs leading-relaxed">
-              Sin <code className="text-xs">AUTH_GOOGLE_ID</code> y <code className="text-xs">AUTH_GOOGLE_SECRET</code> Google
-              devuelve &quot;Missing required parameter: client_id&quot;. Crea un cliente OAuth (tipo web) en{" "}
-              <a
-                href="https://console.cloud.google.com/apis/credentials"
-                className="underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Google Cloud Console
-              </a>
-              , copia el ID y el secreto en <code className="text-xs">.env.local</code>, y añade la URI de redireccion{" "}
-              <code className="text-xs">http://localhost:3000/api/auth/callback/google</code> (y el origen{" "}
-              <code className="text-xs">http://localhost:3000</code>). Reinicia <code className="text-xs">npm run dev</code>.
-            </p>
-          </div>
-        ) : null}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {sessionStatus === "loading" && !sessionLoadingTimedOut ? (
-            <p className="muted text-sm">Comprobando sesion...</p>
-          ) : sessionStatus === "unauthenticated" || (sessionStatus === "loading" && sessionLoadingTimedOut) ? (
-            <>
-              {sessionLoadingTimedOut ? (
-                <p className="muted max-w-md text-sm">
-                  La sesion no responde (revisa en Vercel AUTH_SECRET y AUTH_URL = la URL exacta de esta web).
-                  Puedes intentar entrar igual:
-                </p>
-              ) : null}
-              <button
-                type="button"
-                className="action-button action-end"
-                disabled={authGoogleConfigured === false || authGoogleConfigured === null}
-                title={
-                  authGoogleConfigured === false
-                    ? "Configura AUTH_GOOGLE_ID y AUTH_GOOGLE_SECRET en .env.local"
-                    : authGoogleConfigured === null
-                      ? "Comprobando configuracion del servidor..."
-                      : undefined
-                }
-                onClick={() => {
-                  if (authGoogleConfigured !== true) return;
-                  void signIn("google");
-                }}
-              >
-                Entrar con Google
-              </button>
-              {authGoogleConfigured === null ? (
-                <span className="muted text-xs">Comprobando OAuth...</span>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <p className="text-sm">
-                <span className="font-medium text-foreground">{session?.user?.name ?? "Sesion"}</span>
-                {session?.user?.email ? (
-                  <span className="muted"> · {session.user.email}</span>
-                ) : null}
-              </p>
-              <button
-                type="button"
-                className="action-button action-end"
-                onClick={() => void signOut({ callbackUrl: "/" })}
-              >
-                Salir
-              </button>
-            </>
-          )}
-        </div>
+      <section className="account-bar">
+        {sessionStatus === "loading" && !sessionLoadingTimedOut ? (
+          <span className="muted text-xs">Comprobando sesion...</span>
+        ) : sessionStatus === "unauthenticated" || (sessionStatus === "loading" && sessionLoadingTimedOut) ? (
+          <button
+            type="button"
+            className="account-bar-btn"
+            disabled={authGoogleConfigured === false || authGoogleConfigured === null}
+            onClick={() => { if (authGoogleConfigured === true) void signIn("google"); }}
+          >
+            Entrar con Google
+          </button>
+        ) : (
+          <>
+            <span className="text-xs">
+              <span className="font-medium">{session?.user?.name ?? "Sesion"}</span>
+              {session?.user?.email ? <span className="muted"> · {session.user.email}</span> : null}
+            </span>
+            <button type="button" className="account-bar-btn" onClick={() => void signOut({ callbackUrl: "/" })}>
+              Salir
+            </button>
+          </>
+        )}
         {remoteSyncMessage ? (
-          <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
+          <span className="text-xs text-amber-700 dark:text-amber-400">{remoteSyncMessage}</span>
         ) : null}
         {REMOTE_SYNC_UI && sessionStatus === "authenticated" && syncPullInFlight ? (
-          <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
+          <span className="muted text-xs">Sincronizando...</span>
         ) : null}
       </section>
 
@@ -822,47 +805,86 @@ export default function Home() {
       <section className={`grid gap-6 lg:grid-cols-2 ${activeView === "regla" ? "" : "hidden"}`}>
         <article className="card">
           <h2 className="section-title">Registro de regla</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="field">
-              <span>Fecha de inicio</span>
-              <SpanishDatePicker value={periodStartInput} onChange={setPeriodStartInput} />
-            </label>
-            <div className="field sm:col-span-2">
-              <span>Acciones</span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button className="action-button action-start" type="button" onClick={() => registerPeriodStart(periodStartInput)}>
-                  Registrar llegada
-                </button>
+
+          {!settings.isPeriodOngoing ? (
+            <>
+              <p className="muted text-sm mb-3">No tienes la regla marcada como activa.</p>
+              <label className="field mb-3">
+                <span>Fecha de llegada</span>
+                <SpanishDatePicker value={periodStartInput} onChange={setPeriodStartInput} />
+              </label>
+              <button
+                className="action-button action-start"
+                type="button"
+                onClick={() => registerPeriodStart(periodStartInput)}
+              >
+                Me ha venido la regla
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="phase-description mb-3">
+                Regla en curso desde {settings.lastPeriodStart} ({periodDaysInCourse} dias).
+              </p>
+
+              <div className="mb-4">
+                <p className="block-title mb-2">Registrar sangrado</p>
+                <label className="field mb-2">
+                  <span>Dia</span>
+                  <SpanishDatePicker value={flowDateInput} onChange={setFlowDateInput} />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(FLOW_LABELS) as FlowLevel[]).map((level) => {
+                    const currentFlow = openPeriod?.flow?.find((f) => f.date === flowDateInput);
+                    const isActive = currentFlow?.level === level;
+                    return (
+                      <button
+                        key={level}
+                        type="button"
+                        className={`flow-button ${isActive ? "is-active" : ""}`}
+                        onClick={() => isActive ? removeFlowEntry(flowDateInput) : addFlowEntry(flowDateInput, level)}
+                      >
+                        {FLOW_LABELS[level]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {openPeriod?.flow && openPeriod.flow.length > 0 ? (
+                <div className="mb-4">
+                  <p className="block-title mb-2">Sangrado registrado</p>
+                  <div className="flex flex-wrap gap-1">
+                    {openPeriod.flow.map((f) => (
+                      <span
+                        key={f.date}
+                        className="flow-tag cursor-pointer"
+                        title="Pulsa para borrar"
+                        onClick={() => removeFlowEntry(f.date)}
+                      >
+                        {f.date.slice(5)} · {FLOW_LABELS[f.level]} ✕
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-4 pt-3 border-t border-[var(--border)]">
+                <p className="block-title mb-2">Fin de regla</p>
+                <label className="field mb-2">
+                  <span>Ultimo dia con regla</span>
+                  <SpanishDatePicker value={periodEndInput} onChange={setPeriodEndInput} />
+                </label>
                 <button
                   className="action-button action-end"
                   type="button"
                   onClick={() => endCurrentPeriod(periodEndInput)}
-                  disabled={!settings.isPeriodOngoing}
                 >
-                  Guardar fin de regla
+                  Se me ha ido la regla
                 </button>
               </div>
-            </div>
-          </div>
-          <label className="field mt-3">
-            <span>Fecha de fin</span>
-            <SpanishDatePicker value={periodEndInput} onChange={setPeriodEndInput} />
-          </label>
-          <label className="field mt-3">
-            <span>Estado actual</span>
-            <select
-              value={settings.isPeriodOngoing ? "si" : "no"}
-              onChange={(event) => updatePeriodOngoing(event.target.value === "si")}
-            >
-              <option value="si">Sigo con la regla</option>
-              <option value="no">Ya no estoy con la regla</option>
-            </select>
-          </label>
-          <p className="phase-description">
-            {settings.isPeriodOngoing
-              ? `Regla en curso desde ${settings.lastPeriodStart} (${periodDaysInCourse} dias).`
-              : "Regla no activa ahora mismo."}
-          </p>
+            </>
+          )}
         </article>
 
         <article className="card">
@@ -997,6 +1019,15 @@ export default function Home() {
                     <p className="log-title">
                       Inicio: {record.startDate} {record.endDate ? `- Fin: ${record.endDate}` : "- En curso"}
                     </p>
+                    {record.flow && record.flow.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {record.flow.map((f) => (
+                          <span key={f.date} className="flow-tag">
+                            {f.date.slice(5)} · {FLOW_LABELS[f.level]}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <button type="button" className="danger-button" onClick={() => removePeriodRecord(record.id)}>
                     Borrar
@@ -1010,7 +1041,7 @@ export default function Home() {
 
       <section className={`grid gap-6 lg:grid-cols-2 lg:items-start ${activeView === "entreno" ? "" : "hidden"}`}>
         <article className="card">
-          <h2 className="section-title">Añadir registro de entreno</h2>
+          <h2 className="section-title">{editingLogId ? "Editar sesion" : "Añadir registro de entreno"}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="field">
               <span>Fecha</span>
@@ -1099,9 +1130,8 @@ export default function Home() {
                                   <Fragment key={`${exercise.name}-s${i}`}>
                                     <td>
                                       <input
-                                        type="number"
-                                        step={0.5}
-                                        min={0}
+                                        type="text"
+                                        inputMode="decimal"
                                         className="load-input"
                                         value={sets[i]?.w ?? ""}
                                         onChange={(event) => updateSetLoad(exercise.name, i, "w", event.target.value)}
@@ -1129,13 +1159,12 @@ export default function Home() {
                           <label className="field load-uniform-field">
                             <span>kg</span>
                             <input
-                              type="number"
-                              step={0.5}
-                              min={0}
+                              type="text"
+                              inputMode="decimal"
                               className="load-input"
                               value={sets[0]?.w ?? ""}
                               onChange={(event) => updateUniformLoad(exercise.name, "w", event.target.value)}
-                              placeholder="ej. 22.5"
+                              placeholder="ej. 22,5"
                             />
                           </label>
                           <label className="field load-uniform-field">
@@ -1157,141 +1186,83 @@ export default function Home() {
               </div>
             </div>
           ) : null}
-          <button className="primary-button" type="button" onClick={addTrainingLog}>
-            Guardar sesion
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="primary-button" type="button" onClick={editingLogId ? saveEditLog : addTrainingLog}>
+              {editingLogId ? "Guardar cambios" : "Guardar sesion"}
+            </button>
+            {editingLogId ? (
+              <button className="action-button action-end" type="button" onClick={cancelEdit}>
+                Cancelar edicion
+              </button>
+            ) : null}
+          </div>
         </article>
 
-        <article className="card flex flex-col lg:max-h-[min(90vh,56rem)]">
+        <article className="card flex flex-col">
           <h2 className="section-title">Historico de sesiones</h2>
           <div className="mb-3 flex flex-wrap items-end gap-2">
-            <label className="field min-w-[10rem]">
-              <span>Filtro</span>
-              <select
-                value={sessionFilterType}
-                onChange={(event) => {
-                  setSessionPage(0);
-                  setSessionFilterType(event.target.value as typeof sessionFilterType);
-                }}
-              >
-                <option value="all">Todas</option>
-                <option value="day">Un dia</option>
-                <option value="range">Entre fechas</option>
-                <option value="week">Semana (lun–dom)</option>
-              </select>
-            </label>
-            {sessionFilterType === "day" ? (
-              <label className="field min-w-[11rem]">
-                <span>Fecha</span>
-                <SpanishDatePicker
-                  value={sessionFilterDay}
-                  onChange={(v) => {
-                    setSessionPage(0);
-                    setSessionFilterDay(v);
-                  }}
+            {!sessionFilterAll ? (
+              <label className="field min-w-[12rem]">
+                <span>Mes</span>
+                <input
+                  type="month"
+                  value={sessionFilterMonth}
+                  onChange={(e) => { setSessionPage(0); setSessionFilterMonth(e.target.value); }}
                 />
               </label>
             ) : null}
-            {sessionFilterType === "range" ? (
-              <>
-                <label className="field min-w-[11rem]">
-                  <span>Desde</span>
-                  <SpanishDatePicker
-                    value={sessionRangeFrom}
-                    onChange={(v) => {
-                      setSessionPage(0);
-                      setSessionRangeFrom(v);
-                    }}
-                  />
-                </label>
-                <label className="field min-w-[11rem]">
-                  <span>Hasta</span>
-                  <SpanishDatePicker
-                    value={sessionRangeTo}
-                    onChange={(v) => {
-                      setSessionPage(0);
-                      setSessionRangeTo(v);
-                    }}
-                  />
-                </label>
-              </>
-            ) : null}
-            {sessionFilterType === "week" ? (
-              <label className="field min-w-[14rem]">
-                <span>Semana</span>
-                <select
-                  value={sessionWeekChoiceId || weekOptions[0]?.id || ""}
-                  onChange={(event) => {
-                    setSessionPage(0);
-                    setSessionWeekChoiceId(event.target.value);
-                  }}
-                >
-                  {weekOptions.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
+            {availableMonths.length > 0 ? (
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none mt-auto pb-2">
+                <input
+                  type="checkbox"
+                  checked={sessionFilterAll}
+                  onChange={(e) => { setSessionPage(0); setSessionFilterAll(e.target.checked); }}
+                />
+                Todas
               </label>
             ) : null}
           </div>
           <p className="muted mb-2 text-xs">
-            Mostrando {filteredTrainingLogs.length} sesion{filteredTrainingLogs.length === 1 ? "" : "es"}
-            {sessionTotalPages > 1 ? ` (pagina ${sessionPageClamped + 1} de ${sessionTotalPages})` : ""}
-            .
+            {filteredTrainingLogs.length} sesion{filteredTrainingLogs.length === 1 ? "" : "es"}
+            {sessionTotalPages > 1 ? ` · pag. ${sessionPageClamped + 1}/${sessionTotalPages}` : ""}
           </p>
-          <div className="stack min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="stack">
             {filteredTrainingLogs.length === 0 ? (
               <p className="muted">
                 {trainingLog.length === 0
                   ? "Aun no hay sesiones. Usa el formulario de la izquierda para registrar la primera."
-                  : "No hay sesiones con este filtro."}
+                  : "No hay sesiones en este mes."}
               </p>
             ) : (
               paginatedTrainingLogs.map((log) => {
                 const template = getTemplateById(log.templateId);
                 const extra = logProgressionById.get(log.id);
-                const targets = extra?.targets ?? [];
                 return (
-                  <div key={log.id} className="log-card">
-                    <div className="min-w-0 flex-1">
-                      <p className="log-title">{template?.name || "Sesion"}</p>
-                      <p className="muted">
-                        {log.date} · Esfuerzo {log.effort}/5
-                        {extra?.daysSincePrevSame != null
-                          ? ` · ${extra.daysSincePrevSame} dias desde la misma sesion`
-                          : ""}
-                        {extra != null ? ` · Semana ${extra.weeksInBlock} desde inicio de bloque` : null}
-                      </p>
-                      {targets.length > 0 ? (
-                        <div className="log-notes mt-2">
-                          <p className="text-sm font-semibold">Objetivo de cargas (esa fecha, aprox.)</p>
-                          <ul className="muted mt-1 list-inside list-disc text-sm">
-                            {targets.map((t) => (
-                              <li key={t.name}>
-                                {t.name}: {t.range}
-                              </li>
-                            ))}
-                          </ul>
-                          <p className="muted mt-1 text-xs">
-                            Regla simple: cada ~2 semanas con buena tecnica, suma el paso indicado en el plan; si el
-                            esfuerzo fue 1–2, manten o baja volumen antes de subir peso.
-                          </p>
-                        </div>
-                      ) : null}
-                      {log.notes ? <p className="log-notes">{log.notes}</p> : null}
-                      {log.exerciseLoads && log.exerciseLoads.length > 0 ? (
-                        <div className="log-notes muted text-sm space-y-1">
-                          <p className="font-semibold text-foreground">Series registradas</p>
-                          {log.exerciseLoads.map((entry) => (
-                            <p key={entry.exerciseName}>{formatLoadsForHistory(entry)}</p>
-                          ))}
-                        </div>
-                      ) : null}
+                  <div key={log.id} className={`session-card ${editingLogId === log.id ? "is-editing" : ""}`}>
+                    <div className="session-card-header">
+                      <span className="session-card-title">{template?.name || "Sesion"}</span>
+                      <span className="session-card-date">{log.date}</span>
+                      <span className="session-card-effort">Esfuerzo {log.effort}/5</span>
                     </div>
-                    <button type="button" className="danger-button" onClick={() => removeTrainingLog(log.id)}>
-                      Borrar
-                    </button>
+                    {extra?.daysSincePrevSame != null ? (
+                      <p className="muted text-xs">{extra.daysSincePrevSame} dias desde la misma sesion · Semana {extra.weeksInBlock}</p>
+                    ) : null}
+                    {log.notes ? <p className="session-card-notes">{log.notes}</p> : null}
+                    {log.exerciseLoads && log.exerciseLoads.length > 0 ? (
+                      <div className="session-card-loads">
+                        {log.exerciseLoads.map((entry) => (
+                          <p key={entry.exerciseName}>{formatLoadsForHistory(entry)}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="session-card-actions">
+                      <button type="button" className="action-button action-end" onClick={() => startEditLog(log)}>
+                        Editar
+                      </button>
+                      <button type="button" className="danger-button" onClick={() => removeTrainingLog(log.id)}>
+                        Borrar
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -1308,7 +1279,7 @@ export default function Home() {
                 Anterior
               </button>
               <span className="muted text-sm">
-                Pagina {sessionPageClamped + 1} / {sessionTotalPages}
+                {sessionPageClamped + 1} / {sessionTotalPages}
               </span>
               <button
                 type="button"
@@ -1320,7 +1291,7 @@ export default function Home() {
               </button>
             </div>
           ) : null}
-          {sortedLogs.length > 0 ? (
+          {trainingLog.length > 0 ? (
             <div className="phase-description mt-4 shrink-0 text-sm">
               <p className="font-semibold">Proxima sesion sugerida (hoy, segun bloque)</p>
               <ul className="muted mt-2 space-y-2">

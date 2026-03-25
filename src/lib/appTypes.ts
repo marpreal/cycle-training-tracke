@@ -17,10 +17,25 @@ export type TrainingRecord = {
   exerciseLoads?: ExerciseLoadEntry[];
 };
 
+export type FlowLevel = "spotting" | "light" | "medium" | "heavy";
+
+export const FLOW_LABELS: Record<FlowLevel, string> = {
+  spotting: "Manchado",
+  light: "Ligero",
+  medium: "Medio",
+  heavy: "Abundante",
+};
+
+export type FlowDayEntry = {
+  date: string;
+  level: FlowLevel;
+};
+
 export type PeriodRecord = {
   id: string;
   startDate: string;
   endDate: string | null;
+  flow?: FlowDayEntry[];
 };
 
 export type BodyMeasurementRecord = {

@@ -69,11 +69,13 @@ function isTrainingRecord(x: unknown): x is TrainingRecord {
 function isPeriodRecord(x: unknown): x is PeriodRecord {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
-  return (
-    typeof o.id === "string" &&
-    typeof o.startDate === "string" &&
-    (o.endDate === null || typeof o.endDate === "string")
-  );
+  if (
+    typeof o.id !== "string" ||
+    typeof o.startDate !== "string" ||
+    (o.endDate !== null && typeof o.endDate !== "string")
+  ) return false;
+  if (o.flow !== undefined && !Array.isArray(o.flow)) return false;
+  return true;
 }
 
 function isBodyMeasurementRecord(x: unknown): x is BodyMeasurementRecord {

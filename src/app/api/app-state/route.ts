@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
@@ -77,21 +77,11 @@ export async function PUT(request: Request) {
 
   try {
     const db = getDb();
-    await db
-      .insert(appSnapshotTable)
-      .values({
-        userId,
-        payloadJson,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: appSnapshotTable.userId,
-        set: {
-          payloadJson,
-          updatedAt: now,
-        },
-      });
-    return NextResponse.json({ ok: true, updatedAt: now.getTime() });
+    const tsMs = now.getTime();
+    await db.run(
+      sql`INSERT OR REPLACE INTO app_snapshot (user_id, payload_json, updated_at) VALUES (${userId}, ${payloadJson}, ${tsMs})`,
+    );
+    return NextResponse.json({ ok: true, updatedAt: tsMs });
   } catch (e) {
     console.error(e);
     const detail =
