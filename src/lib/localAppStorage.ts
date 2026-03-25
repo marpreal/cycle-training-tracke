@@ -18,14 +18,34 @@ import {
   type UserProfile,
 } from "@/lib/appTypes";
 
+/** Por encima de esto, JSON.parse/stringify puede bloquear el hilo principal mucho tiempo. */
+const MAX_LOCALSTORAGE_JSON_CHARS = 4_000_000;
+const MAX_TRAINING_LOG_ENTRIES = 5_000;
+
+function rawTooLarge(raw: string, key: string): boolean {
+  if (raw.length <= MAX_LOCALSTORAGE_JSON_CHARS) return false;
+  console.warn(
+    `[cycle-training-tracker] ${key} en localStorage es demasiado grande (${raw.length} caracteres); se ignora para evitar cuelgues.`,
+  );
+  return true;
+}
+
 export function loadSettings(): PeriodSettings {
   if (typeof window === "undefined") return defaultSettings;
   const savedSettings = localStorage.getItem(PERIOD_SETTINGS_KEY);
   if (!savedSettings) {
     return { ...defaultSettings, lastPeriodStart: todayIsoClient() };
   }
+  if (rawTooLarge(savedSettings, PERIOD_SETTINGS_KEY)) {
+    return { ...defaultSettings, lastPeriodStart: todayIsoClient() };
+  }
 
-  const parsed = JSON.parse(savedSettings) as Partial<PeriodSettings>;
+  let parsed: Partial<PeriodSettings>;
+  try {
+    parsed = JSON.parse(savedSettings) as Partial<PeriodSettings>;
+  } catch {
+    return { ...defaultSettings, lastPeriodStart: todayIsoClient() };
+  }
   let lastPeriodStart = parsed.lastPeriodStart ?? defaultSettings.lastPeriodStart;
   if (!lastPeriodStart || lastPeriodStart === DEFAULT_ISO_DATE) {
     lastPeriodStart = todayIsoClient();
@@ -42,8 +62,21 @@ export function loadTrainingLog(): TrainingRecord[] {
   if (typeof window === "undefined") return [];
   const savedLog = localStorage.getItem(TRAINING_LOG_KEY);
   if (!savedLog) return [];
-  const parsed = JSON.parse(savedLog) as TrainingRecord[];
-  return parsed.map((log) => {
+  if (rawTooLarge(savedLog, TRAINING_LOG_KEY)) return [];
+  let parsed: TrainingRecord[];
+  try {
+    parsed = JSON.parse(savedLog) as TrainingRecord[];
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const slice = parsed.length > MAX_TRAINING_LOG_ENTRIES ? parsed.slice(0, MAX_TRAINING_LOG_ENTRIES) : parsed;
+  if (slice !== parsed) {
+    console.warn(
+      `[cycle-training-tracker] historial de entreno recortado a ${MAX_TRAINING_LOG_ENTRIES} entradas para mantener la app fluida.`,
+    );
+  }
+  return slice.map((log) => {
     const migrated = migrateExerciseLoads(log.exerciseLoads as unknown);
     return migrated !== undefined ? { ...log, exerciseLoads: migrated } : log;
   });
@@ -52,7 +85,14 @@ export function loadTrainingLog(): TrainingRecord[] {
 export function loadPeriodLog(): PeriodRecord[] {
   if (typeof window === "undefined") return [];
   const savedLog = localStorage.getItem(PERIOD_LOG_KEY);
-  return savedLog ? (JSON.parse(savedLog) as PeriodRecord[]) : [];
+  if (!savedLog) return [];
+  if (rawTooLarge(savedLog, PERIOD_LOG_KEY)) return [];
+  try {
+    const parsed = JSON.parse(savedLog) as PeriodRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export function loadUserProfile(): UserProfile {
@@ -61,7 +101,15 @@ export function loadUserProfile(): UserProfile {
   if (!raw) {
     return { ...defaultProfile, trainingBlockStart: todayIsoClient() };
   }
-  const parsed = JSON.parse(raw) as Partial<UserProfile>;
+  if (rawTooLarge(raw, USER_PROFILE_KEY)) {
+    return { ...defaultProfile, trainingBlockStart: todayIsoClient() };
+  }
+  let parsed: Partial<UserProfile>;
+  try {
+    parsed = JSON.parse(raw) as Partial<UserProfile>;
+  } catch {
+    return { ...defaultProfile, trainingBlockStart: todayIsoClient() };
+  }
   const activity =
     parsed.activity && parsed.activity in ACTIVITY_FACTORS ? parsed.activity : defaultProfile.activity;
   let trainingBlockStart = parsed.trainingBlockStart || defaultProfile.trainingBlockStart;
@@ -82,7 +130,14 @@ export function loadUserProfile(): UserProfile {
 export function loadBodyMeasurements(): BodyMeasurementRecord[] {
   if (typeof window === "undefined") return [];
   const raw = localStorage.getItem(BODY_MEASUREMENTS_KEY);
-  return raw ? (JSON.parse(raw) as BodyMeasurementRecord[]) : [];
+  if (!raw) return [];
+  if (rawTooLarge(raw, BODY_MEASUREMENTS_KEY)) return [];
+  try {
+    const parsed = JSON.parse(raw) as BodyMeasurementRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export function loadProgressionHorizonWeeks(): number {

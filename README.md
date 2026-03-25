@@ -50,4 +50,15 @@ npm run build
 3. In the Google OAuth client, add **Authorized redirect URI**: `https://your-app.vercel.app/api/auth/callback/google` and **JavaScript origin** your Vercel URL.
 4. Redeploy after changing `NEXT_PUBLIC_*` or `AUTH_*`.
 
-Open `/api/sync-status` on the deployed site to verify `dbConfigured`, `authSecretConfigured`, and `googleOAuthConfigured`.
+Open `/api/sync-status` on the deployed site to verify `dbConfigured`, `authSecretConfigured`, `googleOAuthConfigured`, and `authUrlConfigured`.
+
+### Si ves `/api/auth/error` o `/auth/error`
+
+Ese flujo redirige a una pagina con el **codigo** del fallo (tambien en consola del servidor en `npm run dev` si `NODE_ENV=development`).
+
+| Codigo | Suele significar |
+|--------|------------------|
+| `Configuration` | `AUTH_SECRET` sin definir o vacio; o problema grave de configuracion. |
+| `OAuthCallback` | En Google Cloud falta el redirect exacto `http://localhost:3000/api/auth/callback/google` (o el de produccion), o client id/secret incorrectos. |
+
+Comprueba que `.env.local` tenga valores **no vacios** y reinicia `npm run dev`.

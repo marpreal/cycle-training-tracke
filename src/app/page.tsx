@@ -71,12 +71,21 @@ const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
   process.env.NEXT_PUBLIC_REMOTE_SYNC === "true";
 
+/** GET/PUT a Turso en el cliente: en desarrollo va desactivado salvo NEXT_PUBLIC_REMOTE_SYNC_DEV=true (evita cuelgues al abrir localhost). */
+const REMOTE_SYNC_NETWORK =
+  REMOTE_SYNC_UI &&
+  (process.env.NODE_ENV !== "development" ||
+    process.env.NEXT_PUBLIC_REMOTE_SYNC_DEV === "true");
+
 function getTemplateById(id: string): TrainingDayTemplate | undefined {
   return trainingTemplates.find((template) => template.id === id);
 }
 
 export default function Home() {
   const { data: session, status: sessionStatus } = useSession();
+  /** Evita "" u oscilaciones que re-disparen efectos de sync con cada render. */
+  const sessionUserId =
+    typeof session?.user?.id === "string" && session.user.id.length > 0 ? session.user.id : null;
   const [hasHydrated, setHasHydrated] = useState(false);
   const [settings, setSettings] = useState<PeriodSettings>(defaultSettings);
   const [trainingLog, setTrainingLog] = useState<TrainingRecord[]>([]);
@@ -116,6 +125,20 @@ export default function Home() {
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteApplyRef = useRef(false);
   const syncedDataSerializedRef = useRef<string | null>(null);
+  const remotePullGenRef = useRef(0);
+  /** Tras un pull terminado (ok o error), no volver a disparar hasta logout o cambio de cuenta. */
+  const remotePullDoneForUserRef = useRef<string | null>(null);
+  /** null = aun no sabemos; false = faltan AUTH_GOOGLE_* en el servidor. */
+  const [authGoogleConfigured, setAuthGoogleConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void fetch("/api/sync-status")
+      .then((r) => r.json())
+      .then((d: { googleOAuthConfigured?: boolean }) => {
+        setAuthGoogleConfigured(Boolean(d.googleOAuthConfigured));
+      })
+      .catch(() => setAuthGoogleConfigured(false));
+  }, []);
 
   useEffect(() => {
     const s = loadSettings();
@@ -170,7 +193,7 @@ export default function Home() {
 
   useEffect(() => {
     if (sessionStatus !== "loading") {
-      queueMicrotask(() => setSessionLoadingTimedOut(false));
+      setSessionLoadingTimedOut(false);
       return;
     }
     const t = setTimeout(() => setSessionLoadingTimedOut(true), 10000);
@@ -179,72 +202,69 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated) return;
-    if (!REMOTE_SYNC_UI) {
-      queueMicrotask(() => setRemoteSyncOk(true));
+    if (!REMOTE_SYNC_NETWORK) {
+      setRemoteSyncOk(true);
       return;
     }
     if (sessionStatus === "loading" && !sessionLoadingTimedOut) return;
-    if (sessionStatus === "unauthenticated" || !session?.user?.id) {
-      queueMicrotask(() => {
-        setRemoteSyncOk(true);
-        setRemoteSyncMessage("");
-        setSyncPullInFlight(false);
-      });
+    if (sessionStatus === "unauthenticated" || !sessionUserId) {
+      remotePullDoneForUserRef.current = null;
+      setRemoteSyncOk(true);
+      setRemoteSyncMessage("");
+      setSyncPullInFlight(false);
       return;
     }
-    let cancelled = false;
-    queueMicrotask(() => {
-      setRemoteSyncOk(false);
-      setRemoteSyncMessage("");
-      setSyncPullInFlight(true);
-    });
+    if (remotePullDoneForUserRef.current === sessionUserId) {
+      return;
+    }
+    const gen = (remotePullGenRef.current += 1);
+    setRemoteSyncOk(false);
+    setRemoteSyncMessage("");
+    setSyncPullInFlight(true);
     void (async () => {
       const { snapshot, error, needsAuth } = await fetchRemoteSnapshot();
-      if (cancelled) {
-        queueMicrotask(() => setSyncPullInFlight(false));
-        return;
-      }
+      if (gen !== remotePullGenRef.current) return;
       if (error) {
-        queueMicrotask(() => {
-          setSyncPullInFlight(false);
-          if (needsAuth) {
-            setRemoteSyncMessage("Sesion no valida: vuelve a entrar con Google.");
-            setRemoteSyncOk(true);
-          } else {
-            setRemoteSyncMessage(error);
-            // La app sigue usable en local aunque falle Turso / red
-            setRemoteSyncOk(true);
-          }
-        });
+        setSyncPullInFlight(false);
+        if (needsAuth) {
+          setRemoteSyncMessage("Sesion no valida: vuelve a entrar con Google.");
+        } else {
+          setRemoteSyncMessage(error);
+        }
+        setRemoteSyncOk(true);
+        remotePullDoneForUserRef.current = sessionUserId;
         return;
       }
-      queueMicrotask(() => {
-        setSyncPullInFlight(false);
-        setRemoteSyncOk(true);
-        setRemoteSyncMessage("");
-        if (!snapshot) return;
-        const localTs = getLocalDataTimestamp();
-        if (snapshot.updatedAt <= localTs) {
-          return;
-        }
-        remoteApplyRef.current = true;
-        setSettings(snapshot.settings);
-        setPeriodStartInput(snapshot.settings.lastPeriodStart);
-        setTrainingLog(snapshot.trainingLog);
-        setPeriodLog(snapshot.periodLog);
-        setProfile(snapshot.profile);
-        setMeasurementWeight(String(snapshot.profile.weightKg));
-        setMeasurementLog(snapshot.measurementLog);
-        if (snapshot.preferences?.progressionHorizonWeeks) {
-          setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
-        }
-        setLocalDataTimestamp(snapshot.updatedAt);
-      });
+      setSyncPullInFlight(false);
+      setRemoteSyncOk(true);
+      setRemoteSyncMessage("");
+      if (!snapshot) {
+        remotePullDoneForUserRef.current = sessionUserId;
+        return;
+      }
+      const localTs = getLocalDataTimestamp();
+      if (snapshot.updatedAt <= localTs) {
+        remotePullDoneForUserRef.current = sessionUserId;
+        return;
+      }
+      remoteApplyRef.current = true;
+      setSettings(snapshot.settings);
+      setPeriodStartInput(snapshot.settings.lastPeriodStart);
+      setTrainingLog(snapshot.trainingLog);
+      setPeriodLog(snapshot.periodLog);
+      setProfile(snapshot.profile);
+      setMeasurementWeight(String(snapshot.profile.weightKg));
+      setMeasurementLog(snapshot.measurementLog);
+      if (snapshot.preferences?.progressionHorizonWeeks) {
+        setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
+      }
+      setLocalDataTimestamp(snapshot.updatedAt);
+      remotePullDoneForUserRef.current = sessionUserId;
     })();
     return () => {
-      cancelled = true;
+      remotePullGenRef.current += 1;
     };
-  }, [hasHydrated, session?.user?.id, sessionStatus, sessionLoadingTimedOut]);
+  }, [hasHydrated, sessionUserId, sessionStatus, sessionLoadingTimedOut]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -270,12 +290,16 @@ export default function Home() {
     }
     if (syncedDataSerializedRef.current === next) return;
     syncedDataSerializedRef.current = next;
-    bumpLocalDataTimestamp();
+    // Ceder el hilo antes de tocar localStorage (marca de tiempo); reduce picos al editar datos grandes.
+    const t = window.setTimeout(() => {
+      bumpLocalDataTimestamp();
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, progressionHorizonWeeks]);
 
   useEffect(() => {
-    if (!hasHydrated || !REMOTE_SYNC_UI || !remoteSyncOk) return;
-    if (sessionStatus !== "authenticated" || !session?.user?.id) return;
+    if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
+    if (sessionStatus !== "authenticated" || !sessionUserId) return;
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;
@@ -305,7 +329,7 @@ export default function Home() {
   }, [
     hasHydrated,
     remoteSyncOk,
-    session?.user?.id,
+    sessionUserId,
     sessionStatus,
     settings,
     trainingLog,
@@ -665,59 +689,107 @@ export default function Home() {
         </button>
       </section>
 
-      {REMOTE_SYNC_UI ? (
-        <section className="card">
-          <h2 className="section-title">Cuenta y copia en la nube</h2>
-          <p className="muted text-sm">
-            Los datos siguen en este navegador (localStorage). Para guardarlos en el servidor (Turso) vinculados
-            a tu usuario, entra con Google: la sesion usa una cookie de la app (tambien en incognito mientras no
-            cierres todas las ventanas privadas).
+      <section className="card">
+        <h2 className="section-title">Cuenta y copia en la nube</h2>
+        <p className="muted text-sm">
+          Los datos siguen en este navegador (localStorage). Para guardarlos en el servidor (Turso) vinculados a
+          tu usuario, entra con Google: la sesion usa una cookie de la app (tambien en incognito mientras no cierres
+          todas las ventanas privadas).
+        </p>
+        {!REMOTE_SYNC_UI ? (
+          <p className="muted mt-2 text-xs">
+            En el servidor (p. ej. Vercel) añade <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC=true</code> y
+            redeploy para activar la subida/bajada a Turso; el boton de Google se muestra igual en local y en la
+            web.
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {sessionStatus === "loading" && !sessionLoadingTimedOut ? (
-              <p className="muted text-sm">Comprobando sesion...</p>
-            ) : sessionStatus === "unauthenticated" || (sessionStatus === "loading" && sessionLoadingTimedOut) ? (
-              <>
-                {sessionLoadingTimedOut ? (
-                  <p className="muted max-w-md text-sm">
-                    La sesion no responde (revisa en Vercel AUTH_SECRET y AUTH_URL = la URL exacta de esta web).
-                    Puedes intentar entrar igual:
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  className="action-button action-end"
-                  onClick={() => void signIn("google")}
-                >
-                  Entrar con Google
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-sm">
-                  <span className="font-medium text-foreground">{session?.user?.name ?? "Sesion"}</span>
-                  {session?.user?.email ? (
-                    <span className="muted"> · {session.user.email}</span>
-                  ) : null}
-                </p>
-                <button
-                  type="button"
-                  className="action-button action-end"
-                  onClick={() => void signOut({ callbackUrl: "/" })}
-                >
-                  Salir
-                </button>
-              </>
-            )}
+        ) : null}
+        {REMOTE_SYNC_UI && !REMOTE_SYNC_NETWORK ? (
+          <p className="muted mt-2 text-xs">
+            En <code className="text-xs">next dev</code> la sync con el servidor esta desactivada por defecto (evita
+            cuelgues al abrir localhost). Para probar Turso en local, pon{" "}
+            <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC_DEV=true</code> en <code className="text-xs">.env.local</code>{" "}
+            y reinicia. En build de produccion la sync sigue activa con solo{" "}
+            <code className="text-xs">NEXT_PUBLIC_REMOTE_SYNC=true</code>.
+          </p>
+        ) : null}
+        {authGoogleConfigured === false ? (
+          <div className="mt-3 rounded-lg border border-amber-600/40 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-100">
+            <p className="font-medium">Faltan credenciales de Google en el servidor</p>
+            <p className="mt-2 text-xs leading-relaxed">
+              Sin <code className="text-xs">AUTH_GOOGLE_ID</code> y <code className="text-xs">AUTH_GOOGLE_SECRET</code> Google
+              devuelve &quot;Missing required parameter: client_id&quot;. Crea un cliente OAuth (tipo web) en{" "}
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google Cloud Console
+              </a>
+              , copia el ID y el secreto en <code className="text-xs">.env.local</code>, y añade la URI de redireccion{" "}
+              <code className="text-xs">http://localhost:3000/api/auth/callback/google</code> (y el origen{" "}
+              <code className="text-xs">http://localhost:3000</code>). Reinicia <code className="text-xs">npm run dev</code>.
+            </p>
           </div>
-          {remoteSyncMessage ? (
-            <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
-          ) : null}
-          {REMOTE_SYNC_UI && sessionStatus === "authenticated" && syncPullInFlight ? (
-            <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
-          ) : null}
-        </section>
-      ) : null}
+        ) : null}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {sessionStatus === "loading" && !sessionLoadingTimedOut ? (
+            <p className="muted text-sm">Comprobando sesion...</p>
+          ) : sessionStatus === "unauthenticated" || (sessionStatus === "loading" && sessionLoadingTimedOut) ? (
+            <>
+              {sessionLoadingTimedOut ? (
+                <p className="muted max-w-md text-sm">
+                  La sesion no responde (revisa en Vercel AUTH_SECRET y AUTH_URL = la URL exacta de esta web).
+                  Puedes intentar entrar igual:
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="action-button action-end"
+                disabled={authGoogleConfigured === false || authGoogleConfigured === null}
+                title={
+                  authGoogleConfigured === false
+                    ? "Configura AUTH_GOOGLE_ID y AUTH_GOOGLE_SECRET en .env.local"
+                    : authGoogleConfigured === null
+                      ? "Comprobando configuracion del servidor..."
+                      : undefined
+                }
+                onClick={() => {
+                  if (authGoogleConfigured !== true) return;
+                  void signIn("google");
+                }}
+              >
+                Entrar con Google
+              </button>
+              {authGoogleConfigured === null ? (
+                <span className="muted text-xs">Comprobando OAuth...</span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="text-sm">
+                <span className="font-medium text-foreground">{session?.user?.name ?? "Sesion"}</span>
+                {session?.user?.email ? (
+                  <span className="muted"> · {session.user.email}</span>
+                ) : null}
+              </p>
+              <button
+                type="button"
+                className="action-button action-end"
+                onClick={() => void signOut({ callbackUrl: "/" })}
+              >
+                Salir
+              </button>
+            </>
+          )}
+        </div>
+        {remoteSyncMessage ? (
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
+        ) : null}
+        {REMOTE_SYNC_UI && sessionStatus === "authenticated" && syncPullInFlight ? (
+          <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
+        ) : null}
+      </section>
 
       <section className={`grid gap-4 md:grid-cols-4 ${activeView === "regla" ? "" : "hidden"}`}>
         <article className="metric-card">
