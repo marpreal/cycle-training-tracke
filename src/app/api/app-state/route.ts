@@ -94,6 +94,15 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, updatedAt: now.getTime() });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Error al guardar en la base de datos" }, { status: 500 });
+    const detail =
+      e instanceof Error
+        ? e.message
+        : typeof e === "string"
+          ? e
+          : undefined;
+    return NextResponse.json(
+      { error: "Error al guardar en la base de datos", detail },
+      { status: 500 },
+    );
   }
 }
