@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cycle + Training Tracker",
-  description: "Period phase calculator and weekly training log",
+  title: "Control de ciclo y entreno",
+  description: "Seguimiento de regla, fases del ciclo y registro semanal de entrenamientos",
 };
 
 export default function RootLayout({
@@ -24,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

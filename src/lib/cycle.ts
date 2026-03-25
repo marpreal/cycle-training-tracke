@@ -17,30 +17,31 @@ export function getCurrentCycleDay(lastPeriodStart: string, today = new Date()):
   return Math.max(1, daysBetween(startDate, today) + 1);
 }
 
-export function getPhaseInfo(cycleDay: number, cycleLength: number): PhaseInfo {
+export function getPhaseInfo(cycleDay: number, cycleLength: number, periodLength: number): PhaseInfo {
   const ovulationDay = Math.round(cycleLength / 2);
+  const menstrualDays = Math.max(1, periodLength);
 
-  if (cycleDay <= 5) {
+  if (cycleDay <= menstrualDays) {
     return {
       name: "Menstrual",
-      description: "Energy can be lower. Focus on recovery, hydration and lighter training if needed.",
+      description: "La energia puede bajar. Prioriza recuperacion, hidratacion y entreno mas ligero si hace falta.",
     };
   }
   if (cycleDay <= ovulationDay - 3) {
     return {
-      name: "Follicular",
-      description: "Energy usually rises. Great window to build strength and push progression.",
+      name: "Folicular",
+      description: "Suele subir la energia. Buena ventana para progresar en fuerza.",
     };
   }
   if (cycleDay <= ovulationDay + 2) {
     return {
-      name: "Ovulation",
-      description: "Often peak performance days. Keep form strict and avoid ego loading.",
+      name: "Ovulacion",
+      description: "Suelen ser dias de buen rendimiento. Mantén buena tecnica y controla cargas.",
     };
   }
   return {
-    name: "Luteal",
-    description: "Prioritize sleep, stable nutrition and volume control. Adjust intensity based on recovery.",
+    name: "Lutea",
+    description: "Prioriza sueno, nutricion estable y control de volumen. Ajusta intensidad segun recuperacion.",
   };
 }
 
@@ -52,7 +53,7 @@ export function getNextPeriodDate(lastPeriodStart: string, cycleLength: number):
 }
 
 export function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", {
+  return date.toLocaleDateString("es-ES", {
     day: "2-digit",
     month: "short",
     year: "numeric",

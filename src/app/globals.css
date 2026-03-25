@@ -133,6 +133,241 @@ textarea {
   align-self: flex-start;
 }
 
+.view-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.view-tab {
+  border: 1px solid #fbcfe8;
+  background: #fff;
+  color: #9d174d;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.view-tab.is-active {
+  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.date-picker-root {
+  position: relative;
+  width: 100%;
+}
+
+.date-picker-trigger {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+.date-picker-trigger:hover {
+  border-color: #f9a8d4;
+}
+
+.date-picker-panel {
+  position: absolute;
+  z-index: 40;
+  margin-top: 0.35rem;
+  left: 0;
+  right: 0;
+  min-width: 17rem;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.date-picker-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.date-picker-nav-btn {
+  border: none;
+  background: #fdf2f8;
+  color: #9d174d;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.45rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.date-picker-month {
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex: 1;
+  text-align: center;
+}
+
+.date-picker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+
+.date-picker-wd {
+  padding: 0.15rem 0;
+}
+
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+}
+
+.date-picker-cell {
+  border: none;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.date-picker-cell:hover:not(.date-picker-cell--empty) {
+  background: #fdf2f8;
+}
+
+.date-picker-cell--empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.date-picker-cell.is-selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.load-entry-table .load-exercise-name {
+  min-width: 8rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.load-entry-table .load-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 4.25rem;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.85rem;
+}
+
+.load-exercise-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.load-exercise-card {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  background: #fcfcfd;
+}
+
+.load-exercise-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.load-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.load-detail-toggle input {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.load-uniform-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.load-uniform-field {
+  flex: 1;
+  min-width: 6rem;
+}
+
+.load-uniform-field .load-input {
+  max-width: none;
+}
+
+.action-button {
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  padding: 0.62rem 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.action-start {
+  color: #fff;
+  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  box-shadow: 0 10px 20px rgba(236, 72, 153, 0.28);
+}
+
+.action-start:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(236, 72, 153, 0.35);
+}
+
+.action-end {
+  background: #fff;
+  color: #be123c;
+  border-color: #fda4af;
+}
+
+.action-end:hover:not(:disabled) {
+  background: #fff1f2;
+}
+
 .stack {
   display: grid;
   gap: 0.75rem;
