@@ -110,6 +110,9 @@ export default function Home() {
   const [sessionPage, setSessionPage] = useState(0);
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
+  /** Solo true mientras dura el GET /api/app-state (evita "Sincronizando..." eterno si hay error). */
+  const [syncPullInFlight, setSyncPullInFlight] = useState(false);
+  const [sessionLoadingTimedOut, setSessionLoadingTimedOut] = useState(false);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteApplyRef = useRef(false);
   const syncedDataSerializedRef = useRef<string | null>(null);
@@ -166,16 +169,26 @@ export default function Home() {
   }, [progressionHorizonWeeks, hasHydrated]);
 
   useEffect(() => {
+    if (sessionStatus !== "loading") {
+      queueMicrotask(() => setSessionLoadingTimedOut(false));
+      return;
+    }
+    const t = setTimeout(() => setSessionLoadingTimedOut(true), 10000);
+    return () => clearTimeout(t);
+  }, [sessionStatus]);
+
+  useEffect(() => {
     if (!hasHydrated) return;
     if (!REMOTE_SYNC_UI) {
       queueMicrotask(() => setRemoteSyncOk(true));
       return;
     }
-    if (sessionStatus === "loading") return;
+    if (sessionStatus === "loading" && !sessionLoadingTimedOut) return;
     if (sessionStatus === "unauthenticated" || !session?.user?.id) {
       queueMicrotask(() => {
         setRemoteSyncOk(true);
         setRemoteSyncMessage("");
+        setSyncPullInFlight(false);
       });
       return;
     }
@@ -183,23 +196,30 @@ export default function Home() {
     queueMicrotask(() => {
       setRemoteSyncOk(false);
       setRemoteSyncMessage("");
+      setSyncPullInFlight(true);
     });
     void (async () => {
       const { snapshot, error, needsAuth } = await fetchRemoteSnapshot();
-      if (cancelled) return;
+      if (cancelled) {
+        queueMicrotask(() => setSyncPullInFlight(false));
+        return;
+      }
       if (error) {
         queueMicrotask(() => {
+          setSyncPullInFlight(false);
           if (needsAuth) {
             setRemoteSyncMessage("Sesion no valida: vuelve a entrar con Google.");
             setRemoteSyncOk(true);
           } else {
             setRemoteSyncMessage(error);
-            setRemoteSyncOk(false);
+            // La app sigue usable en local aunque falle Turso / red
+            setRemoteSyncOk(true);
           }
         });
         return;
       }
       queueMicrotask(() => {
+        setSyncPullInFlight(false);
         setRemoteSyncOk(true);
         setRemoteSyncMessage("");
         if (!snapshot) return;
@@ -224,7 +244,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, session?.user?.id, sessionStatus]);
+  }, [hasHydrated, session?.user?.id, sessionStatus, sessionLoadingTimedOut]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -654,16 +674,24 @@ export default function Home() {
             cierres todas las ventanas privadas).
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {sessionStatus === "loading" ? (
+            {sessionStatus === "loading" && !sessionLoadingTimedOut ? (
               <p className="muted text-sm">Comprobando sesion...</p>
-            ) : sessionStatus === "unauthenticated" ? (
-              <button
-                type="button"
-                className="action-button action-end"
-                onClick={() => void signIn("google")}
-              >
-                Entrar con Google
-              </button>
+            ) : sessionStatus === "unauthenticated" || (sessionStatus === "loading" && sessionLoadingTimedOut) ? (
+              <>
+                {sessionLoadingTimedOut ? (
+                  <p className="muted max-w-md text-sm">
+                    La sesion no responde (revisa en Vercel AUTH_SECRET y AUTH_URL = la URL exacta de esta web).
+                    Puedes intentar entrar igual:
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="action-button action-end"
+                  onClick={() => void signIn("google")}
+                >
+                  Entrar con Google
+                </button>
+              </>
             ) : (
               <>
                 <p className="text-sm">
@@ -685,7 +713,7 @@ export default function Home() {
           {remoteSyncMessage ? (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">{remoteSyncMessage}</p>
           ) : null}
-          {REMOTE_SYNC_UI && sessionStatus === "authenticated" && !remoteSyncOk ? (
+          {REMOTE_SYNC_UI && sessionStatus === "authenticated" && syncPullInFlight ? (
             <p className="muted mt-2 text-sm">Sincronizando con el servidor...</p>
           ) : null}
         </section>
