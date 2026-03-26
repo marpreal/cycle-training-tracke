@@ -13,8 +13,8 @@ function isoDayRange(dateIso: string): { startNs: string; endNs: string } {
   }
   const endMs = startMs + 24 * 60 * 60 * 1000;
   return {
-    startNs: String(BigInt(startMs) * 1_000_000n),
-    endNs: String(BigInt(endMs) * 1_000_000n),
+    startNs: `${Math.trunc(startMs)}000000`,
+    endNs: `${Math.trunc(endMs)}000000`,
   };
 }
 
