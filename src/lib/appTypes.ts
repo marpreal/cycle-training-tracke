@@ -48,6 +48,12 @@ export type BodyMeasurementRecord = {
   notes: string;
 };
 
+export type StepsRecord = {
+  id: string;
+  date: string;
+  steps: number;
+};
+
 export type UserProfile = {
   age: number;
   heightCm: number;
@@ -64,6 +70,7 @@ export const TRAINING_LOG_KEY = "training-log-v1";
 export const PERIOD_LOG_KEY = "period-log-v1";
 export const USER_PROFILE_KEY = "user-profile-v1";
 export const BODY_MEASUREMENTS_KEY = "body-measurements-v1";
+export const STEPS_LOG_KEY = "steps-log-v1";
 export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
 
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */

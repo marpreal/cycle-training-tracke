@@ -6,6 +6,7 @@ import {
   type BodyMeasurementRecord,
   type PeriodRecord,
   type PeriodSettings,
+  type StepsRecord,
   todayIsoClient,
   type TrainingRecord,
   type UserProfile,
@@ -19,6 +20,7 @@ export type AppSnapshotV1 = {
   periodLog: PeriodRecord[];
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
+  stepsLog?: StepsRecord[];
   /** Preferencias UI que antes no iban a localStorage. */
   preferences?: {
     progressionHorizonWeeks: number;
@@ -31,6 +33,7 @@ export function buildSnapshot(parts: {
   periodLog: PeriodRecord[];
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
+  stepsLog?: StepsRecord[];
   preferences?: AppSnapshotV1["preferences"];
 }): AppSnapshotV1 {
   return {
@@ -105,6 +108,18 @@ function isUserProfile(x: unknown): x is UserProfile {
   );
 }
 
+function isStepsRecord(x: unknown): x is StepsRecord {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.date === "string" &&
+    typeof o.steps === "number" &&
+    Number.isFinite(o.steps) &&
+    o.steps >= 0
+  );
+}
+
 /** Valida y normaliza un snapshot remoto; devuelve null si no es valido. */
 export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!raw || typeof raw !== "object") return null;
@@ -116,6 +131,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!Array.isArray(o.periodLog) || !o.periodLog.every(isPeriodRecord)) return null;
   if (!isUserProfile(o.profile)) return null;
   if (!Array.isArray(o.measurementLog) || !o.measurementLog.every(isBodyMeasurementRecord)) return null;
+  if (o.stepsLog != null && (!Array.isArray(o.stepsLog) || !o.stepsLog.every(isStepsRecord))) return null;
 
   let preferences: AppSnapshotV1["preferences"];
   if (o.preferences != null && typeof o.preferences === "object") {
@@ -149,6 +165,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
     profile,
     measurementLog: o.measurementLog,
   };
+  if (Array.isArray(o.stepsLog)) out.stepsLog = o.stepsLog;
   if (preferences) out.preferences = preferences;
   return out;
 }

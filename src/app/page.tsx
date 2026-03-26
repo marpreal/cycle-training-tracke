@@ -34,6 +34,7 @@ import type {
   FlowLevel,
   PeriodRecord,
   PeriodSettings,
+  StepsRecord,
   TrainingRecord,
   UserProfile,
 } from "@/lib/appTypes";
@@ -46,6 +47,7 @@ import {
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
+  STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
   USER_PROFILE_KEY,
@@ -55,6 +57,7 @@ import {
   loadPeriodLog,
   loadProgressionHorizonWeeks,
   loadSettings,
+  loadStepsLog,
   loadTrainingLog,
   loadUserProfile,
 } from "@/lib/localAppStorage";
@@ -105,7 +108,12 @@ export default function Home() {
   const [progressionHorizonWeeks, setProgressionHorizonWeeks] = useState(6);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [measurementLog, setMeasurementLog] = useState<BodyMeasurementRecord[]>([]);
+  const [stepsLog, setStepsLog] = useState<StepsRecord[]>([]);
   const [measurementDate, setMeasurementDate] = useState(DEFAULT_ISO_DATE);
+  const [stepDateInput, setStepDateInput] = useState(DEFAULT_ISO_DATE);
+  const [stepCountInput, setStepCountInput] = useState("");
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [fitStepsStatus, setFitStepsStatus] = useState("");
   const [measurementWeight, setMeasurementWeight] = useState(String(defaultProfile.weightKg));
   const [measurementWaist, setMeasurementWaist] = useState("");
   const [measurementHip, setMeasurementHip] = useState("");
@@ -154,6 +162,39 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!hasHydrated) return;
+    if (sessionStatus !== "authenticated") return;
+    if (!stepDateInput || stepDateInput === DEFAULT_ISO_DATE) return;
+    if (editingStepId) return;
+
+    let cancelled = false;
+    void fetch(`/api/google-fit/steps?date=${encodeURIComponent(stepDateInput)}`, {
+      credentials: "include",
+    })
+      .then(async (res) => {
+        const payload = (await res.json().catch(() => ({}))) as { steps?: number; error?: string };
+        if (!res.ok) {
+          throw new Error(payload.error ?? "No se pudieron cargar pasos desde Google Fit.");
+        }
+        if (typeof payload.steps !== "number" || !Number.isFinite(payload.steps) || payload.steps < 0) {
+          throw new Error("Google Fit devolvio un valor de pasos invalido.");
+        }
+        if (cancelled) return;
+        setStepCountInput(String(Math.round(payload.steps)));
+        setFitStepsStatus("Pasos cargados desde Google Fit.");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "No se pudieron cargar pasos desde Google Fit.";
+        setFitStepsStatus(message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editingStepId, hasHydrated, sessionStatus, stepDateInput]);
+
+  useEffect(() => {
     const s = loadSettings();
     const prof = loadUserProfile();
     const today = todayIsoClient();
@@ -167,9 +208,11 @@ export default function Home() {
       setProfile(prof);
       setMeasurementWeight(String(prof.weightKg));
       setMeasurementLog(loadBodyMeasurements());
+      setStepsLog(loadStepsLog());
       setPeriodEndInput(today);
       setFlowDateInput(today);
       setNewLogDate(today);
+      setStepDateInput(today);
       setMeasurementDate(today);
       setHasHydrated(true);
     });
@@ -199,6 +242,11 @@ export default function Home() {
     if (!hasHydrated) return;
     localStorage.setItem(BODY_MEASUREMENTS_KEY, JSON.stringify(measurementLog));
   }, [measurementLog, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    localStorage.setItem(STEPS_LOG_KEY, JSON.stringify(stepsLog));
+  }, [stepsLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -269,6 +317,7 @@ export default function Home() {
       setProfile(snapshot.profile);
       setMeasurementWeight(String(snapshot.profile.weightKg));
       setMeasurementLog(snapshot.measurementLog);
+      setStepsLog(snapshot.stepsLog ?? []);
       if (snapshot.preferences?.progressionHorizonWeeks) {
         setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
       }
@@ -288,6 +337,7 @@ export default function Home() {
       periodLog,
       profile,
       measurementLog,
+      stepsLog,
       progressionHorizonWeeks,
     };
     const next = JSON.stringify(pack);
@@ -309,7 +359,7 @@ export default function Home() {
       bumpLocalDataTimestamp();
     }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, progressionHorizonWeeks]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -323,6 +373,7 @@ export default function Home() {
         periodLog,
         profile,
         measurementLog,
+        stepsLog,
         preferences: { progressionHorizonWeeks },
       });
       void (async () => {
@@ -350,6 +401,7 @@ export default function Home() {
     periodLog,
     profile,
     measurementLog,
+    stepsLog,
     progressionHorizonWeeks,
   ]);
 
@@ -685,6 +737,52 @@ export default function Home() {
     setMeasurementLog((current) => current.filter((item) => item.id !== id));
   }
 
+  function parseStepsInput(value: string): number | null {
+    const onlyDigits = value.replace(/[^\d]/g, "");
+    if (!onlyDigits) return null;
+    const n = Number(onlyDigits);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n);
+  }
+
+  function saveStepsEntry() {
+    const parsed = parseStepsInput(stepCountInput);
+    if (parsed == null) return;
+    if (editingStepId) {
+      setStepsLog((current) =>
+        current.map((item) => (item.id === editingStepId ? { ...item, date: stepDateInput, steps: parsed } : item)),
+      );
+    } else {
+      const newEntry: StepsRecord = {
+        id: crypto.randomUUID(),
+        date: stepDateInput,
+        steps: parsed,
+      };
+      setStepsLog((current) => [newEntry, ...current]);
+    }
+    setEditingStepId(null);
+    setStepCountInput("");
+  }
+
+  function startEditSteps(entry: StepsRecord) {
+    setEditingStepId(entry.id);
+    setStepDateInput(entry.date);
+    setStepCountInput(String(entry.steps));
+  }
+
+  function cancelEditSteps() {
+    setEditingStepId(null);
+    setStepCountInput("");
+  }
+
+  function removeStepsEntry(id: string) {
+    setStepsLog((current) => current.filter((item) => item.id !== id));
+    if (editingStepId === id) {
+      setEditingStepId(null);
+      setStepCountInput("");
+    }
+  }
+
   function updateSetLoad(exerciseName: string, setIndex: number, field: "w" | "r", value: string) {
     setNewLogLoads((current) => {
       const prev = current[exerciseName] ?? Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow());
@@ -738,6 +836,25 @@ export default function Home() {
     }
     return { week, month, year };
   }, [trainingLog, hasHydrated]);
+
+  const stepsStats = useMemo(() => {
+    if (!hasHydrated) return { month: 0, year: 0 };
+    const now = new Date();
+    const yearPrefix = `${now.getFullYear()}-`;
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-`;
+    let month = 0;
+    let year = 0;
+    for (const entry of stepsLog) {
+      if (entry.date.startsWith(monthPrefix)) month += entry.steps;
+      if (entry.date.startsWith(yearPrefix)) year += entry.steps;
+    }
+    return { month, year };
+  }, [stepsLog, hasHydrated]);
+
+  const sortedStepsLog = useMemo(
+    () => [...stepsLog].sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date))),
+    [stepsLog],
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
@@ -1072,6 +1189,78 @@ export default function Home() {
         <article className="metric-card">
           <p className="metric-label">Este año</p>
           <p className="metric-value">{hasHydrated ? trainingStats.year : "—"}</p>
+        </article>
+      </section>
+
+      <section className={`grid gap-6 ${activeView === "entreno" ? "" : "hidden"}`}>
+        <article className="card">
+          <h2 className="section-title">Pasos diarios</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="field">
+              <span>Fecha</span>
+              <SpanishDatePicker value={stepDateInput} onChange={setStepDateInput} />
+            </label>
+            <label className="field">
+              <span>Pasos</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={stepCountInput}
+                onChange={(event) => setStepCountInput(event.target.value)}
+                placeholder="ej. 8450"
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="primary-button" type="button" onClick={saveStepsEntry}>
+              {editingStepId ? "Guardar pasos" : "Añadir pasos"}
+            </button>
+            {editingStepId ? (
+              <button className="action-button action-end" type="button" onClick={cancelEditSteps}>
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+          {sessionStatus === "authenticated" ? (
+            <p className="muted mt-2 text-xs">
+              {fitStepsStatus || "Los pasos se autocompletan desde Google Fit para la fecha elegida."}
+            </p>
+          ) : null}
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <article className="metric-card">
+              <p className="metric-label">Pasos este mes</p>
+              <p className="metric-value-small">{hasHydrated ? stepsStats.month.toLocaleString("es-ES") : "—"}</p>
+            </article>
+            <article className="metric-card">
+              <p className="metric-label">Pasos este año</p>
+              <p className="metric-value-small">{hasHydrated ? stepsStats.year.toLocaleString("es-ES") : "—"}</p>
+            </article>
+          </div>
+          <div className="stack mt-4">
+            {sortedStepsLog.length === 0 ? (
+              <p className="muted text-sm">Todavia no has registrado pasos.</p>
+            ) : (
+              sortedStepsLog.slice(0, 10).map((entry) => (
+                <div key={entry.id} className="log-card">
+                  <div>
+                    <p className="log-title">{entry.date}</p>
+                    <p className="muted text-sm">{entry.steps.toLocaleString("es-ES")} pasos</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" className="action-button action-end" onClick={() => startEditSteps(entry)}>
+                      Editar
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => removeStepsEntry(entry.id)}>
+                      Borrar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {sortedStepsLog.length > 10 ? (
+            <p className="muted mt-2 text-xs">Mostrando las 10 fechas mas recientes.</p>
+          ) : null}
         </article>
       </section>
 

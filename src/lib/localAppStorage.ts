@@ -11,8 +11,10 @@ import {
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
+  STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
+  type StepsRecord,
   type TrainingRecord,
   USER_PROFILE_KEY,
   type UserProfile,
@@ -135,6 +137,28 @@ export function loadBodyMeasurements(): BodyMeasurementRecord[] {
   try {
     const parsed = JSON.parse(raw) as BodyMeasurementRecord[];
     return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadStepsLog(): StepsRecord[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(STEPS_LOG_KEY);
+  if (!raw) return [];
+  if (rawTooLarge(raw, STEPS_LOG_KEY)) return [];
+  try {
+    const parsed = JSON.parse(raw) as StepsRecord[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        Boolean(item) &&
+        typeof item.id === "string" &&
+        typeof item.date === "string" &&
+        typeof item.steps === "number" &&
+        Number.isFinite(item.steps) &&
+        item.steps >= 0,
+    );
   } catch {
     return [];
   }
