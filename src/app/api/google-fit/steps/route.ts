@@ -61,17 +61,38 @@ export async function GET(request: Request) {
     cache: "no-store",
   });
 
+  const fitErrPayload = (await fitRes.json().catch(() => ({}))) as {
+    error?: {
+      code?: number;
+      message?: string;
+      status?: string;
+      errors?: Array<{ reason?: string; message?: string }>;
+    };
+  };
+
   if (fitRes.status === 401 || fitRes.status === 403) {
+    const reason = fitErrPayload.error?.errors?.[0]?.reason;
+    const detail = fitErrPayload.error?.message;
     return NextResponse.json(
-      { error: "Google rechazo el token. Cierra sesion y entra de nuevo." },
+      {
+        error: "Google rechazo el token. Cierra sesion y entra de nuevo.",
+        reason,
+        detail,
+      },
       { status: 401 },
     );
   }
   if (!fitRes.ok) {
-    return NextResponse.json({ error: "No se pudieron leer pasos desde Google Fit." }, { status: 502 });
+    return NextResponse.json(
+      {
+        error: "No se pudieron leer pasos desde Google Fit.",
+        reason: fitErrPayload.error?.errors?.[0]?.reason,
+        detail: fitErrPayload.error?.message,
+      },
+      { status: 502 },
+    );
   }
-
-  const data = (await fitRes.json().catch(() => ({}))) as {
+  const data = fitErrPayload as {
     bucket?: Array<{
       dataset?: Array<{
         point?: Array<{
