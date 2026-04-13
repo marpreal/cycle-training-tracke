@@ -27,6 +27,51 @@ export function proteinDailyGrams(weightKg: number): { min: number; max: number;
   };
 }
 
+export type WeightGoal = "loss" | "gain" | "maintenance";
+
+export function getWeightGoal(
+  weightKg: number,
+  targetWeightKg: number | null | undefined,
+): WeightGoal {
+  if (targetWeightKg == null || !Number.isFinite(targetWeightKg)) return "maintenance";
+  const diff = weightKg - targetWeightKg;
+  if (Math.abs(diff) < 0.15) return "maintenance";
+  return diff > 0 ? "loss" : "gain";
+}
+
+/**
+ * Daily calorie adjustment relative to maintenance TDEE.
+ * Negative = deficit (loss), positive = surplus (gain), 0 = maintenance.
+ * Derived from weightGoalWeeks when available; falls back to safe defaults.
+ * Clamped to: loss [-500, -300], gain [+200, +400].
+ */
+export function goalCalorieAdjustment(
+  weightKg: number,
+  targetWeightKg: number | null | undefined,
+  weightGoalWeeks: number | null | undefined,
+): number {
+  const goal = getWeightGoal(weightKg, targetWeightKg);
+  if (goal === "maintenance") return 0;
+
+  const diff = weightKg - (targetWeightKg as number); // positive=loss, negative=gain
+
+  let raw: number;
+  if (weightGoalWeeks != null && weightGoalWeeks > 0) {
+    // rate-based: diff kg over N weeks → kcal/day adjustment
+    raw = -Math.round(((diff / weightGoalWeeks) * 7700) / 7);
+  } else {
+    raw = goal === "loss" ? -400 : 300;
+  }
+
+  if (goal === "loss") {
+    // Clamp to [-500, -300]
+    return -Math.min(500, Math.max(300, -raw));
+  } else {
+    // Clamp to [+200, +400]
+    return Math.min(400, Math.max(200, raw));
+  }
+}
+
 export type SessionNutrition = {
   templateId: string;
   name: string;

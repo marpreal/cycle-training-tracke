@@ -1,0 +1,164 @@
+"use client";
+
+import { SpanishDatePicker } from "@/components/SpanishDatePicker";
+import { ExerciseLoadInput } from "./ExerciseLoadInput";
+import { trainingTemplates } from "@/data/trainingPlan";
+import { MAX_LOAD_SETS } from "@/lib/trainingLoads";
+import type { TrainingRecord } from "@/lib/appTypes";
+import type { UseTrainingFormReturn } from "@/hooks/useTrainingForm";
+
+interface TrainingFormCardProps {
+  form: UseTrainingFormReturn;
+  loadExercisesForForm: { name: string }[];
+  latestLoadsForTemplate: Map<string, number>;
+  customExercisesForTemplate: string[];
+  onSave: () => void;
+  onCancel: () => void;
+  onAddCustomExercise: () => void;
+  onRemoveCustomExercise: (name: string) => void;
+}
+
+export function TrainingFormCard({
+  form,
+  loadExercisesForForm,
+  latestLoadsForTemplate,
+  customExercisesForTemplate,
+  onSave,
+  onCancel,
+  onAddCustomExercise,
+  onRemoveCustomExercise,
+}: TrainingFormCardProps) {
+  const {
+    newLogDate,
+    setNewLogDate,
+    newLogTemplate,
+    newLogEffort,
+    setNewLogEffort,
+    newLogNotes,
+    setNewLogNotes,
+    newCustomExerciseName,
+    setNewCustomExerciseName,
+    editingLogId,
+    getFormSetsForExercise,
+    isLoadDetail,
+    updateSetLoad,
+    updateUniformLoad,
+    setLoadDetailMode,
+    addSetForExercise,
+    removeLastSetForExercise,
+    changeTemplate,
+  } = form;
+
+  return (
+    <article className="card">
+      <h2 className="section-title">
+        {editingLogId ? "Editar sesión" : "Añadir registro de entreno"}
+      </h2>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="field">
+          <span>Fecha</span>
+          <SpanishDatePicker value={newLogDate} onChange={setNewLogDate} />
+        </label>
+        <label className="field">
+          <span>Sesión</span>
+          <select
+            value={newLogTemplate}
+            onChange={(e) => changeTemplate(e.target.value)}
+          >
+            {trainingTemplates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Esfuerzo (1-5)</span>
+          <select
+            value={newLogEffort}
+            onChange={(e) => setNewLogEffort(Number(e.target.value) as TrainingRecord["effort"])}
+          >
+            {[1, 2, 3, 4, 5].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field sm:col-span-2">
+          <span>Notas</span>
+          <textarea
+            rows={3}
+            value={newLogNotes}
+            onChange={(e) => setNewLogNotes(e.target.value)}
+            placeholder="¿Cómo te sentiste? ¿Subiste peso? ¿Cómo fue la recuperación?"
+          />
+        </label>
+      </div>
+
+      {loadExercisesForForm.length > 0 ? (
+        <div className="mt-4">
+          <p className="block-title">Cargas por ejercicio</p>
+          <p className="muted mb-3 text-xs">
+            Por defecto: una fila de kg y reps (se copia a todas las series). Activa &quot;Detalle
+            por serie&quot; para pesos distintos. Puedes añadir o quitar series (hasta {MAX_LOAD_SETS}).
+          </p>
+          <div className="mb-3 flex flex-wrap items-end gap-2">
+            <label className="field min-w-[12rem] flex-1">
+              <span>Ejercicio extra (esta sesión)</span>
+              <input
+                type="text"
+                value={newCustomExerciseName}
+                onChange={(e) => setNewCustomExerciseName(e.target.value)}
+                placeholder="Nombre del ejercicio"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onAddCustomExercise();
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="action-button action-end"
+              onClick={onAddCustomExercise}
+            >
+              Añadir ejercicio
+            </button>
+          </div>
+          <div className="load-exercise-stack">
+            {loadExercisesForForm.map((exercise) => (
+              <ExerciseLoadInput
+                key={exercise.name}
+                exerciseName={exercise.name}
+                sets={getFormSetsForExercise(exercise.name)}
+                isDetail={isLoadDetail(exercise.name)}
+                isCustom={customExercisesForTemplate.includes(exercise.name)}
+                lastKnownKg={latestLoadsForTemplate.get(exercise.name)}
+                onRemoveCustom={() => onRemoveCustomExercise(exercise.name)}
+                onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
+                onUpdateSet={(i, field, value) => updateSetLoad(exercise.name, i, field, value)}
+                onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
+                onAddSet={() => addSetForExercise(exercise.name)}
+                onRemoveSet={() => removeLastSetForExercise(exercise.name)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className="primary-button" type="button" onClick={onSave}>
+          {editingLogId ? "Guardar cambios" : "Guardar sesión"}
+        </button>
+        {editingLogId ? (
+          <button className="action-button action-end" type="button" onClick={onCancel}>
+            Cancelar edición
+          </button>
+        ) : null}
+      </div>
+    </article>
+  );
+}

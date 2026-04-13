@@ -1,11 +1,73 @@
-import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { parseAppSnapshot, type AppSnapshotV1 } from "@/lib/appSnapshot";
 import { appSnapshotTable } from "@/lib/db/schema";
-import { getDb, isDbConfigured } from "@/lib/db";
+import { ensureSchema, getDb, isDbConfigured } from "@/lib/db";
+
+/**
+ * Write to Turso via its HTTP pipeline API directly.
+ * Bypasses @libsql/client's HTTP transport which can break
+ * under Next.js's patched fetch (returns HTTP 400).
+ */
+async function tursoWrite(
+  userId: string,
+  payloadJson: string,
+  updatedAtMs: number,
+): Promise<void> {
+  const rawUrl = process.env.TURSO_DATABASE_URL ?? "";
+  const token = process.env.TURSO_AUTH_TOKEN ?? "";
+  const baseUrl = rawUrl
+    .replace(/^libsql:\/\//, "https://")
+    .replace(/\/$/, "");
+
+  const body = JSON.stringify({
+    baton: null,
+    requests: [
+      {
+        type: "execute",
+        stmt: {
+          sql: "INSERT OR REPLACE INTO app_snapshot (user_id, payload_json, updated_at) VALUES (?, ?, ?)",
+          args: [
+            { type: "text", value: userId },
+            { type: "text", value: payloadJson },
+            { type: "integer", value: String(updatedAtMs) },
+          ],
+        },
+      },
+      { type: "close" },
+    ],
+  });
+
+  const resp = await fetch(`${baseUrl}/v3/pipeline`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body,
+    cache: "no-store",
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "(no body)");
+    throw new Error(
+      `Turso write failed: HTTP ${resp.status} – ${text.slice(0, 500)}`,
+    );
+  }
+
+  const data = (await resp.json()) as {
+    results?: Array<{ type: string; error?: { message?: string } }>;
+  };
+  for (const r of data.results ?? []) {
+    if (r.type === "error") {
+      throw new Error(
+        `Turso SQL error: ${r.error?.message ?? JSON.stringify(r)}`,
+      );
+    }
+  }
+}
 
 export const runtime = "nodejs";
 
@@ -27,6 +89,7 @@ export async function GET() {
   const userId = session.user.id;
 
   try {
+    await ensureSchema();
     const db = getDb();
     const rows = await db.select().from(appSnapshotTable).where(eq(appSnapshotTable.userId, userId)).limit(1);
     if (rows.length === 0) {
@@ -77,16 +140,9 @@ export async function PUT(request: Request) {
   const payloadJson = JSON.stringify({ ...snapshot, updatedAt: now.getTime() });
 
   try {
-    const tsMs = now.getTime();
-    const client = createClient({
-      url: process.env.TURSO_DATABASE_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN!,
-    });
-    await client.execute({
-      sql: "INSERT OR REPLACE INTO app_snapshot (user_id, payload_json, updated_at) VALUES (?, ?, ?)",
-      args: [userId, payloadJson, tsMs],
-    });
-    return NextResponse.json({ ok: true, updatedAt: tsMs });
+    await ensureSchema();
+    await tursoWrite(userId, payloadJson, now.getTime());
+    return NextResponse.json({ ok: true, updatedAt: now.getTime() });
   } catch (e) {
     console.error(e);
     const detail =
