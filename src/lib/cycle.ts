@@ -1,6 +1,8 @@
 export type PhaseInfo = {
   name: string;
   description: string;
+  /** Hormonas y contexto fisiologico (simple, orientativo). */
+  hormones: string;
 };
 
 export function toDateOnly(value: string): Date {
@@ -25,23 +27,31 @@ export function getPhaseInfo(cycleDay: number, cycleLength: number, periodLength
     return {
       name: "Menstrual",
       description: "La energia puede bajar. Prioriza recuperacion, hidratacion y entreno mas ligero si hace falta.",
+      hormones:
+        "Estrogeno y progesterona estan bajos; puede haber molestias o fatiga. El utero elimina el endometrio.",
     };
   }
   if (cycleDay <= ovulationDay - 3) {
     return {
       name: "Folicular",
       description: "Suele subir la energia. Buena ventana para progresar en fuerza.",
+      hormones:
+        "El estrogeno sube (foliculos en el ovario); la progesterona sigue baja. Suelen notarse mas energia y mejor humor.",
     };
   }
   if (cycleDay <= ovulationDay + 2) {
     return {
       name: "Ovulacion",
       description: "Suelen ser dias de buen rendimiento. Mantén buena tecnica y controla cargas.",
+      hormones:
+        "Pico de LH y liberacion del ovulo; el estrogeno es alto y luego cae algo. Puede coincidir con buen rendimiento.",
     };
   }
   return {
     name: "Lutea",
     description: "Prioriza sueno, nutricion estable y control de volumen. Ajusta intensidad segun recuperacion.",
+    hormones:
+      "Tras la ovulacion sube la progesterona (cuerpo luteo). Puede haber retencion de liquido, mas hambre o cambios de animo antes de la regla.",
   };
 }
 

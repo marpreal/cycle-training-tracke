@@ -9,7 +9,9 @@ export const EXCLUDED_FROM_LOADS = new Set([
   "Abducciones con banda",
 ]);
 
-export const LOAD_SET_COUNT = 3;
+/** Series por ejercicio en el formulario (min 1, max este valor). */
+export const DEFAULT_LOAD_SETS = 3;
+export const MAX_LOAD_SETS = 8;
 
 export type OneSetLoad = { weightKg: number; reps: number };
 
@@ -26,24 +28,38 @@ export function getLoadTrackedExercises(template: TrainingDayTemplate) {
   return template.blocks.flatMap((b) => b.exercises).filter((e) => isLoadTrackedExercise(e.name));
 }
 
+/** Ejercicios del plan + nombres extra definidos por la usuaria (misma sesion). */
+export function getLoadTrackedExercisesWithCustom(template: TrainingDayTemplate, customNames: string[]) {
+  const base = getLoadTrackedExercises(template);
+  const seen = new Set(base.map((e) => e.name));
+  const extras: { name: string }[] = [];
+  for (const raw of customNames) {
+    const name = raw.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    extras.push({ name });
+  }
+  return [...base, ...extras];
+}
+
 export function maxWeightInEntry(entry: ExerciseLoadEntry): number {
   return Math.max(0, ...entry.sets.map((s) => s.weightKg));
 }
 
-function setsAreTripleUniform(sets: OneSetLoad[]): boolean {
-  if (sets.length !== 3 || !sets[0]) return false;
+function setsAreAllUniform(sets: OneSetLoad[]): boolean {
+  if (sets.length < 2 || !sets[0]) return false;
   return sets.every((s) => s.weightKg === sets[0].weightKg && s.reps === sets[0].reps);
 }
 
-/** Texto compacto para el historial (3× si las tres series son iguales). */
+/** Texto compacto para el historial (N× si todas las series son iguales). */
 export function formatLoadsForHistory(entry: ExerciseLoadEntry): string {
   const { sets } = entry;
-  if (setsAreTripleUniform(sets)) {
+  if (setsAreAllUniform(sets)) {
     const w = sets[0].weightKg;
     const r = sets[0].reps;
     const wStr = w > 0 ? `${w} kg` : "— kg";
     const rStr = r > 0 ? `${r} reps` : "— reps";
-    return `${entry.exerciseName}: 3× ${wStr} × ${rStr}`;
+    return `${entry.exerciseName}: ${sets.length}× ${wStr} × ${rStr}`;
   }
   const parts = sets.map((s, i) => {
     const w = s.weightKg > 0 ? `${s.weightKg} kg` : "— kg";

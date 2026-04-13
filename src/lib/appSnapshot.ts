@@ -24,6 +24,8 @@ export type AppSnapshotV1 = {
   /** Preferencias UI que antes no iban a localStorage. */
   preferences?: {
     progressionHorizonWeeks: number;
+    /** Ejercicios extra por id de plantilla. */
+    customExercisesByTemplate?: Record<string, string[]>;
   };
 };
 
@@ -136,8 +138,22 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   let preferences: AppSnapshotV1["preferences"];
   if (o.preferences != null && typeof o.preferences === "object") {
     const p = o.preferences as Record<string, unknown>;
-    if (typeof p.progressionHorizonWeeks === "number" && p.progressionHorizonWeeks > 0) {
-      preferences = { progressionHorizonWeeks: Math.round(p.progressionHorizonWeeks) };
+    const progressionHorizonWeeks =
+      typeof p.progressionHorizonWeeks === "number" && p.progressionHorizonWeeks > 0
+        ? Math.round(p.progressionHorizonWeeks)
+        : 6;
+    preferences = { progressionHorizonWeeks };
+    if (p.customExercisesByTemplate != null && typeof p.customExercisesByTemplate === "object") {
+      const rawCustom = p.customExercisesByTemplate as Record<string, unknown>;
+      const custom: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(rawCustom)) {
+        if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+          custom[k] = v.map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      if (Object.keys(custom).length > 0) {
+        preferences = { ...preferences, customExercisesByTemplate: custom };
+      }
     }
   }
 

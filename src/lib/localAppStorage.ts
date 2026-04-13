@@ -11,6 +11,7 @@ import {
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
+  CUSTOM_EXERCISES_KEY,
   STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
@@ -118,6 +119,8 @@ export function loadUserProfile(): UserProfile {
   if (!trainingBlockStart || trainingBlockStart === DEFAULT_ISO_DATE) {
     trainingBlockStart = todayIsoClient();
   }
+  const tw = parsed.targetWeightKg;
+  const wg = parsed.weightGoalWeeks;
   return {
     ...defaultProfile,
     ...parsed,
@@ -126,6 +129,20 @@ export function loadUserProfile(): UserProfile {
     weightKg: Number(parsed.weightKg) || defaultProfile.weightKg,
     activity,
     trainingBlockStart,
+    targetWeightKg:
+      tw == null || tw === undefined
+        ? null
+        : (() => {
+            const n = Number(tw);
+            return Number.isFinite(n) ? n : null;
+          })(),
+    weightGoalWeeks:
+      wg == null || wg === undefined
+        ? null
+        : (() => {
+            const n = Number(wg);
+            return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+          })(),
   };
 }
 
@@ -170,4 +187,24 @@ export function loadProgressionHorizonWeeks(): number {
   if (!raw) return 6;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 6;
+}
+
+export function loadCustomExercisesByTemplate(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(CUSTOM_EXERCISES_KEY);
+  if (!raw) return {};
+  if (rawTooLarge(raw, CUSTOM_EXERCISES_KEY)) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+        out[k] = v.map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }

@@ -22,8 +22,9 @@ import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { trainingTemplates, type TrainingDayTemplate } from "@/data/trainingPlan";
 import {
   formatLoadsForHistory,
-  getLoadTrackedExercises,
-  LOAD_SET_COUNT,
+  getLoadTrackedExercisesWithCustom,
+  DEFAULT_LOAD_SETS,
+  MAX_LOAD_SETS,
   maxWeightInEntry,
   type ExerciseLoadEntry,
 } from "@/lib/trainingLoads";
@@ -47,6 +48,7 @@ import {
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
+  CUSTOM_EXERCISES_KEY,
   STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
@@ -55,6 +57,7 @@ import {
 import {
   loadBodyMeasurements,
   loadPeriodLog,
+  loadCustomExercisesByTemplate,
   loadProgressionHorizonWeeks,
   loadSettings,
   loadStepsLog,
@@ -69,6 +72,12 @@ import {
 } from "@/lib/localDataTimestamp";
 import { buildSnapshot } from "@/lib/appSnapshot";
 import { fetchRemoteSnapshot, pushRemoteSnapshot } from "@/lib/remoteAppState";
+import {
+  buildFullPlanText,
+  buildSessionLogText,
+  downloadTextFile,
+  openPrintWindow,
+} from "@/lib/trainingExport";
 
 const SESSION_PAGE_SIZE = 5;
 
@@ -106,6 +115,12 @@ export default function Home() {
   /** true = editar cada serie por separado; false o ausente = misma carga en las 3 */
   const [loadDetailByExercise, setLoadDetailByExercise] = useState<Record<string, boolean>>({});
   const [progressionHorizonWeeks, setProgressionHorizonWeeks] = useState(6);
+  const [customExercisesByTemplate, setCustomExercisesByTemplate] = useState<Record<string, string[]>>({});
+  const [newCustomExerciseName, setNewCustomExerciseName] = useState("");
+  const [exportMonth, setExportMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [measurementLog, setMeasurementLog] = useState<BodyMeasurementRecord[]>([]);
   const [stepsLog, setStepsLog] = useState<StepsRecord[]>([]);
@@ -168,7 +183,15 @@ export default function Home() {
     if (editingStepId) return;
 
     let cancelled = false;
-    void fetch(`/api/google-fit/steps?date=${encodeURIComponent(stepDateInput)}`, {
+    const dayStartLocal = new Date(`${stepDateInput}T00:00:00`);
+    const startMs = dayStartLocal.getTime();
+    const endMs = startMs + 24 * 60 * 60 * 1000;
+    const qs = new URLSearchParams({
+      date: stepDateInput,
+      startMs: String(startMs),
+      endMs: String(endMs),
+    });
+    void fetch(`/api/google-fit/steps?${qs.toString()}`, {
       credentials: "include",
     })
       .then(async (res) => {
@@ -201,6 +224,7 @@ export default function Home() {
     queueMicrotask(() => {
       initLocalDataTimestampIfMissing();
       setProgressionHorizonWeeks(loadProgressionHorizonWeeks());
+      setCustomExercisesByTemplate(loadCustomExercisesByTemplate());
       setSettings(s);
       setPeriodStartInput(s.lastPeriodStart);
       setTrainingLog(loadTrainingLog());
@@ -252,6 +276,11 @@ export default function Home() {
     if (!hasHydrated) return;
     localStorage.setItem(PROGRESSION_HORIZON_KEY, String(progressionHorizonWeeks));
   }, [progressionHorizonWeeks, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercisesByTemplate));
+  }, [customExercisesByTemplate, hasHydrated]);
 
   useEffect(() => {
     if (sessionStatus !== "loading") {
@@ -321,6 +350,9 @@ export default function Home() {
       if (snapshot.preferences?.progressionHorizonWeeks) {
         setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
       }
+      if (snapshot.preferences?.customExercisesByTemplate) {
+        setCustomExercisesByTemplate(snapshot.preferences.customExercisesByTemplate);
+      }
       setLocalDataTimestamp(snapshot.updatedAt);
       remotePullDoneForUserRef.current = sessionUserId;
     })();
@@ -339,6 +371,7 @@ export default function Home() {
       measurementLog,
       stepsLog,
       progressionHorizonWeeks,
+      customExercisesByTemplate,
     };
     const next = JSON.stringify(pack);
     if (remoteApplyRef.current) {
@@ -359,7 +392,7 @@ export default function Home() {
       bumpLocalDataTimestamp();
     }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -374,7 +407,10 @@ export default function Home() {
         profile,
         measurementLog,
         stepsLog,
-        preferences: { progressionHorizonWeeks },
+        preferences: {
+          progressionHorizonWeeks,
+          customExercisesByTemplate,
+        },
       });
       void (async () => {
         const { ok, error, updatedAt } = await pushRemoteSnapshot(snap);
@@ -403,6 +439,7 @@ export default function Home() {
     measurementLog,
     stepsLog,
     progressionHorizonWeeks,
+    customExercisesByTemplate,
   ]);
 
   const latestClosedCurrentCycleLength = useMemo(() => {
@@ -427,6 +464,8 @@ export default function Home() {
         name: "Menstrual (en curso)",
         description:
           "Has marcado que la regla sigue activa. Prioriza recuperacion y adapta la carga segun sensaciones.",
+        hormones:
+          "Estrogeno y progesterona bajos; el utero descama el endometrio. Puede haber calambres o mas cansancio.",
       }
     : basePhase;
   const nextPeriod = useMemo(
@@ -467,12 +506,32 @@ export default function Home() {
     [newLogTemplate],
   );
 
+  const loadExercisesForForm = useMemo(() => {
+    if (!selectedTemplate) return [];
+    return getLoadTrackedExercisesWithCustom(selectedTemplate, customExercisesByTemplate[newLogTemplate] ?? []);
+  }, [selectedTemplate, newLogTemplate, customExercisesByTemplate]);
+
   const bmr = useMemo(
     () => bmrFemaleKg(profile.weightKg, profile.heightCm, profile.age),
     [profile.weightKg, profile.heightCm, profile.age],
   );
   const maintenanceTdee = useMemo(() => tdeeMaintenance(bmr, profile.activity), [bmr, profile.activity]);
   const proteinDay = useMemo(() => proteinDailyGrams(profile.weightKg), [profile.weightKg]);
+
+  const weightGoalHint = useMemo(() => {
+    const cur = profile.weightKg;
+    const target = profile.targetWeightKg;
+    const weeks = profile.weightGoalWeeks;
+    if (target == null || weeks == null || weeks <= 0 || !Number.isFinite(target)) return null;
+    const diff = cur - target;
+    if (Math.abs(diff) < 0.15) return "Casi en el peso objetivo (orientativo).";
+    const weeklyKg = diff / weeks;
+    const kcalPerDay = Math.round((Math.abs(weeklyKg) * 7700) / 7);
+    if (diff > 0) {
+      return `Orientativo: ~${Math.abs(weeklyKg).toFixed(2)} kg/semana de perdida ≈ deficit ${kcalPerDay} kcal/dia (regla empirica ~7700 kcal/kg grasa).`;
+    }
+    return `Orientativo: ~${Math.abs(weeklyKg).toFixed(2)} kg/semana de ganancia ≈ superavit ${kcalPerDay} kcal/dia.`;
+  }, [profile.weightKg, profile.targetWeightKg, profile.weightGoalWeeks]);
 
   const logProgressionById = useMemo(() => {
     const asc = [...trainingLog].sort((a, b) => a.date.localeCompare(b.date));
@@ -558,17 +617,19 @@ export default function Home() {
 
   function getFormSetsForExercise(exerciseName: string): { w: string; r: string }[] {
     const row = newLogLoads[exerciseName];
-    if (!row) return Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow());
-    return [...row, ...Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow())].slice(0, LOAD_SET_COUNT);
+    if (!row || row.length === 0) {
+      return Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
+    }
+    return row.slice(0, MAX_LOAD_SETS);
   }
 
   function addTrainingLog() {
-    const tracked = selectedTemplate ? getLoadTrackedExercises(selectedTemplate) : [];
+    const tracked = loadExercisesForForm;
     const parsedLoads: ExerciseLoadEntry[] = [];
     for (const ex of tracked) {
       const rows = getFormSetsForExercise(ex.name);
       const sets: { weightKg: number; reps: number }[] = [];
-      for (let i = 0; i < LOAD_SET_COUNT; i += 1) {
+      for (let i = 0; i < rows.length; i += 1) {
         const w = parseOptionalNumber(rows[i]?.w ?? "");
         const r = parseOptionalNumber(rows[i]?.r ?? "");
         const hasW = w != null && w > 0;
@@ -613,8 +674,8 @@ export default function Home() {
     const details: Record<string, boolean> = {};
     for (const entry of log.exerciseLoads ?? []) {
       const rows = entry.sets.map((s) => ({ w: s.weightKg > 0 ? String(s.weightKg) : "", r: s.reps > 0 ? String(s.reps) : "" }));
-      while (rows.length < LOAD_SET_COUNT) rows.push({ w: "", r: "" });
-      loads[entry.exerciseName] = rows.slice(0, LOAD_SET_COUNT);
+      while (rows.length < 1) rows.push({ w: "", r: "" });
+      loads[entry.exerciseName] = rows.slice(0, MAX_LOAD_SETS);
       const allSame = rows.length >= 2 && rows.every((r) => r.w === rows[0].w && r.r === rows[0].r);
       details[entry.exerciseName] = !allSame;
     }
@@ -625,12 +686,12 @@ export default function Home() {
 
   function saveEditLog() {
     if (!editingLogId) return;
-    const tracked = selectedTemplate ? getLoadTrackedExercises(selectedTemplate) : [];
+    const tracked = loadExercisesForForm;
     const parsedLoads: ExerciseLoadEntry[] = [];
     for (const ex of tracked) {
       const rows = getFormSetsForExercise(ex.name);
       const sets: { weightKg: number; reps: number }[] = [];
-      for (let i = 0; i < LOAD_SET_COUNT; i += 1) {
+      for (let i = 0; i < rows.length; i += 1) {
         const w = parseOptionalNumber(rows[i]?.w ?? "");
         const r = parseOptionalNumber(rows[i]?.r ?? "");
         if ((w != null && w > 0) || (r != null && r > 0)) {
@@ -785,31 +846,81 @@ export default function Home() {
 
   function updateSetLoad(exerciseName: string, setIndex: number, field: "w" | "r", value: string) {
     setNewLogLoads((current) => {
-      const prev = current[exerciseName] ?? Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow());
+      const prev = current[exerciseName] ?? Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
       const next = prev.map((cell, idx) => (idx === setIndex ? { ...cell, [field]: value } : cell));
-      while (next.length < LOAD_SET_COUNT) next.push(emptySetRow());
-      return { ...current, [exerciseName]: next.slice(0, LOAD_SET_COUNT) };
+      return { ...current, [exerciseName]: next.slice(0, MAX_LOAD_SETS) };
     });
   }
 
   function updateUniformLoad(exerciseName: string, field: "w" | "r", value: string) {
     setNewLogLoads((current) => {
-      const prev = current[exerciseName] ?? Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow());
+      const prev = current[exerciseName] ?? Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
+      const len = Math.min(MAX_LOAD_SETS, Math.max(1, prev.length));
       const base = { ...prev[0], [field]: value };
-      const triple = [base, base, base].map((s) => ({ ...s }));
-      return { ...current, [exerciseName]: triple };
+      return {
+        ...current,
+        [exerciseName]: Array.from({ length: len }, () => ({ ...base })),
+      };
     });
   }
 
   function setLoadDetailMode(exerciseName: string, wantDetail: boolean) {
     if (!wantDetail) {
       setNewLogLoads((current) => {
-        const prev = current[exerciseName] ?? Array.from({ length: LOAD_SET_COUNT }, () => emptySetRow());
+        const prev = current[exerciseName] ?? Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
+        const len = Math.min(MAX_LOAD_SETS, Math.max(1, prev.length));
         const first = prev[0] ?? emptySetRow();
-        return { ...current, [exerciseName]: [first, first, first].map((s) => ({ ...s })) };
+        return {
+          ...current,
+          [exerciseName]: Array.from({ length: len }, () => ({ ...first })),
+        };
       });
     }
     setLoadDetailByExercise((prev) => ({ ...prev, [exerciseName]: wantDetail }));
+  }
+
+  function addSetForExercise(exerciseName: string) {
+    setNewLogLoads((current) => {
+      const prev = current[exerciseName] ?? Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
+      if (prev.length >= MAX_LOAD_SETS) return current;
+      return { ...current, [exerciseName]: [...prev, emptySetRow()] };
+    });
+  }
+
+  function removeLastSetForExercise(exerciseName: string) {
+    setNewLogLoads((current) => {
+      const prev = current[exerciseName] ?? Array.from({ length: DEFAULT_LOAD_SETS }, () => emptySetRow());
+      if (prev.length <= 1) return current;
+      return { ...current, [exerciseName]: prev.slice(0, -1) };
+    });
+  }
+
+  function addCustomExerciseToTemplate() {
+    const name = newCustomExerciseName.trim();
+    if (!name || !selectedTemplate) return;
+    setCustomExercisesByTemplate((prev) => {
+      const list = prev[newLogTemplate] ?? [];
+      const lower = name.toLowerCase();
+      if (list.some((x) => x.toLowerCase() === lower)) return prev;
+      return { ...prev, [newLogTemplate]: [...list, name] };
+    });
+    setNewCustomExerciseName("");
+  }
+
+  function removeCustomExercise(name: string) {
+    setCustomExercisesByTemplate((prev) => {
+      const list = prev[newLogTemplate] ?? [];
+      const nextList = list.filter((x) => x !== name);
+      const next = { ...prev };
+      if (nextList.length === 0) delete next[newLogTemplate];
+      else next[newLogTemplate] = nextList;
+      return next;
+    });
+    setNewLogLoads((cur) => {
+      const rest = { ...cur };
+      delete rest[name];
+      return rest;
+    });
   }
 
   function isLoadDetail(exerciseName: string): boolean {
@@ -1068,6 +1179,9 @@ export default function Home() {
           </div>
           <p className="phase-description">
             {phase.description}
+            {"hormones" in phase ? (
+              <span className="block mt-2 text-[var(--muted)]">{phase.hormones}</span>
+            ) : null}
             {latestClosedCurrentCycleLength ? (
               <span className="block mt-2">Duracion real del ultimo ciclo cerrado: {latestClosedCurrentCycleLength} dias.</span>
             ) : null}
@@ -1316,42 +1430,74 @@ export default function Home() {
             <div className="mt-4">
               <p className="block-title">Cargas por ejercicio</p>
               <p className="muted mb-3 text-xs">
-                Por defecto: una sola fila de kg y reps (se copia a las 3 series). Activa &quot;Detalle por serie&quot;
-                solo si cambiaste peso o repeticiones entre series.
+                Por defecto: una fila de kg y reps (se copia a todas las series). Activa &quot;Detalle por serie&quot;
+                para pesos distintos por serie. Puedes añadir o quitar series (hasta {MAX_LOAD_SETS}).
               </p>
+              <div className="mb-3 flex flex-wrap items-end gap-2">
+                <label className="field min-w-[12rem] flex-1">
+                  <span>Ejercicio extra (esta sesion)</span>
+                  <input
+                    type="text"
+                    value={newCustomExerciseName}
+                    onChange={(e) => setNewCustomExerciseName(e.target.value)}
+                    placeholder="Nombre del ejercicio"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomExerciseToTemplate();
+                      }
+                    }}
+                  />
+                </label>
+                <button type="button" className="action-button action-end" onClick={addCustomExerciseToTemplate}>
+                  Añadir ejercicio
+                </button>
+              </div>
               <div className="load-exercise-stack">
-                {getLoadTrackedExercises(selectedTemplate).map((exercise) => {
+                {loadExercisesForForm.map((exercise) => {
                   const sets = getFormSetsForExercise(exercise.name);
                   const detail = isLoadDetail(exercise.name);
+                  const isCustom = (customExercisesByTemplate[newLogTemplate] ?? []).includes(exercise.name);
                   return (
                     <div key={exercise.name} className="load-exercise-card">
                       <div className="load-exercise-card-head">
                         <span className="load-exercise-name">{exercise.name}</span>
-                        <label className="load-detail-toggle">
-                          <input
-                            type="checkbox"
-                            checked={detail}
-                            onChange={(event) => setLoadDetailMode(exercise.name, event.target.checked)}
-                          />
-                          <span>Detalle por serie</span>
-                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isCustom ? (
+                            <button
+                              type="button"
+                              className="text-xs text-amber-700 underline dark:text-amber-400"
+                              onClick={() => removeCustomExercise(exercise.name)}
+                            >
+                              Quitar ejercicio
+                            </button>
+                          ) : null}
+                          <label className="load-detail-toggle">
+                            <input
+                              type="checkbox"
+                              checked={detail}
+                              onChange={(event) => setLoadDetailMode(exercise.name, event.target.checked)}
+                            />
+                            <span>Detalle por serie</span>
+                          </label>
+                        </div>
                       </div>
                       {detail ? (
                         <div className="table-wrapper">
                           <table className="load-entry-table">
                             <thead>
                               <tr>
-                                <th>S1 kg</th>
-                                <th>S1 reps</th>
-                                <th>S2 kg</th>
-                                <th>S2 reps</th>
-                                <th>S3 kg</th>
-                                <th>S3 reps</th>
+                                {sets.map((_, i) => (
+                                  <Fragment key={`${exercise.name}-h-${i}`}>
+                                    <th>S{i + 1} kg</th>
+                                    <th>S{i + 1} reps</th>
+                                  </Fragment>
+                                ))}
                               </tr>
                             </thead>
                             <tbody>
                               <tr>
-                                {[0, 1, 2].map((i) => (
+                                {sets.map((_, i) => (
                                   <Fragment key={`${exercise.name}-s${i}`}>
                                     <td>
                                       <input
@@ -1378,32 +1524,73 @@ export default function Home() {
                               </tr>
                             </tbody>
                           </table>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="action-button action-end text-xs"
+                              disabled={sets.length >= MAX_LOAD_SETS}
+                              onClick={() => addSetForExercise(exercise.name)}
+                            >
+                              Añadir serie
+                            </button>
+                            <button
+                              type="button"
+                              className="action-button action-end text-xs"
+                              disabled={sets.length <= 1}
+                              onClick={() => removeLastSetForExercise(exercise.name)}
+                            >
+                              Quitar ultima serie
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <div className="load-uniform-row">
-                          <label className="field load-uniform-field">
-                            <span>kg</span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              className="load-input"
-                              value={sets[0]?.w ?? ""}
-                              onChange={(event) => updateUniformLoad(exercise.name, "w", event.target.value)}
-                              placeholder="ej. 22,5"
-                            />
-                          </label>
-                          <label className="field load-uniform-field">
-                            <span>reps</span>
-                            <input
-                              type="number"
-                              min={0}
-                              className="load-input"
-                              value={sets[0]?.r ?? ""}
-                              onChange={(event) => updateUniformLoad(exercise.name, "r", event.target.value)}
-                              placeholder="ej. 12"
-                            />
-                          </label>
-                        </div>
+                        <>
+                          <div className="load-uniform-row">
+                            <label className="field load-uniform-field">
+                              <span>kg</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                className="load-input"
+                                value={sets[0]?.w ?? ""}
+                                onChange={(event) => updateUniformLoad(exercise.name, "w", event.target.value)}
+                                placeholder="ej. 22,5"
+                              />
+                            </label>
+                            <label className="field load-uniform-field">
+                              <span>reps</span>
+                              <input
+                                type="number"
+                                min={0}
+                                className="load-input"
+                                value={sets[0]?.r ?? ""}
+                                onChange={(event) => updateUniformLoad(exercise.name, "r", event.target.value)}
+                                placeholder="ej. 12"
+                              />
+                            </label>
+                          </div>
+                          <p className="muted mt-1 text-xs">
+                            Series, misma carga en todas: {sets.length}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="action-button action-end text-xs"
+                              disabled={sets.length >= MAX_LOAD_SETS}
+                              onClick={() => addSetForExercise(exercise.name)}
+                            >
+                              Añadir serie
+                            </button>
+                            <button
+                              type="button"
+                              className="action-button action-end text-xs"
+                              disabled={sets.length <= 1}
+                              onClick={() => removeLastSetForExercise(exercise.name)}
+                            >
+                              Quitar ultima serie
+                            </button>
+                          </div>
+                        </>
                       )}
                     </div>
                   );
@@ -1609,7 +1796,7 @@ export default function Home() {
             />
           </label>
           <label className="field">
-            <span>Peso (kg)</span>
+            <span>Peso actual (kg)</span>
             <input
               type="number"
               min={35}
@@ -1617,6 +1804,41 @@ export default function Home() {
               step={0.1}
               value={profile.weightKg}
               onChange={(event) => setProfile((p) => ({ ...p, weightKg: Number(event.target.value) }))}
+            />
+          </label>
+          <label className="field">
+            <span>Peso objetivo (kg)</span>
+            <input
+              type="number"
+              min={35}
+              max={120}
+              step={0.1}
+              value={profile.targetWeightKg ?? ""}
+              placeholder="opcional"
+              onChange={(event) => {
+                const v = event.target.value;
+                setProfile((p) => ({
+                  ...p,
+                  targetWeightKg: v === "" ? null : Number(v),
+                }));
+              }}
+            />
+          </label>
+          <label className="field">
+            <span>Plazo al objetivo (semanas)</span>
+            <input
+              type="number"
+              min={1}
+              max={104}
+              value={profile.weightGoalWeeks ?? ""}
+              placeholder="opcional"
+              onChange={(event) => {
+                const v = event.target.value;
+                setProfile((p) => ({
+                  ...p,
+                  weightGoalWeeks: v === "" ? null : Number(v),
+                }));
+              }}
             />
           </label>
           <label className="field">
@@ -1640,6 +1862,9 @@ export default function Home() {
             />
           </label>
         </div>
+        {weightGoalHint ? (
+          <p className="phase-description mt-3 text-sm">{weightGoalHint}</p>
+        ) : null}
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <article className="metric-card">
             <p className="metric-label">TMB (aprox.)</p>
@@ -1694,6 +1919,54 @@ export default function Home() {
       </section>
 
       <section className={`${activeView === "entreno" ? "" : "hidden"}`}>
+        <article className="card mb-4">
+          <h2 className="section-title">Exportar entrenos</h2>
+          <p className="muted mb-3 text-sm">
+            Descarga el plan en texto o el historial de sesiones. Para PDF, usa &quot;Imprimir / guardar como PDF&quot; en
+            el navegador.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="field min-w-[10rem]">
+              <span>Mes del historial</span>
+              <input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="action-button action-end"
+              onClick={() => downloadTextFile("plan-entrenamiento.txt", buildFullPlanText())}
+            >
+              Plan completo (.txt)
+            </button>
+            <button
+              type="button"
+              className="action-button action-end"
+              onClick={() =>
+                downloadTextFile(`sesiones-${exportMonth}.txt`, buildSessionLogText(trainingLog, exportMonth))
+              }
+            >
+              Historial del mes (.txt)
+            </button>
+            <button
+              type="button"
+              className="action-button action-end"
+              onClick={() => downloadTextFile("sesiones-completo.txt", buildSessionLogText(trainingLog, null))}
+            >
+              Historial completo (.txt)
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() =>
+                openPrintWindow(
+                  "Entrenos",
+                  `${buildFullPlanText()}\n\n---\n\n${buildSessionLogText(trainingLog, null)}`,
+                )
+              }
+            >
+              Imprimir / PDF
+            </button>
+          </div>
+        </article>
         <article className="card">
           <h2 className="section-title">Plantillas semanales</h2>
           <div className="stack">
