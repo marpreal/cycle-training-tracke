@@ -122,15 +122,85 @@ textarea {
 }
 
 .primary-button {
-  background: var(--accent);
+  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
   color: white;
-  margin-top: 0.75rem;
+  margin-top: 0;
+  box-shadow: 0 8px 20px rgba(236, 72, 153, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(236, 72, 153, 0.42);
+}
+
+.primary-button:focus-visible {
+  outline: 2px solid #f472b6;
+  outline-offset: 2px;
+}
+
+.primary-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .danger-button {
-  background: #fee2e2;
+  background: #fef2f2;
   color: #991b1b;
+  border: 1px solid #fecaca;
   align-self: flex-start;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.danger-button:focus-visible {
+  outline: 2px solid #f87171;
+  outline-offset: 2px;
+}
+
+.edit-button {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.edit-button:hover {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+.edit-button:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+.app-header {
+  overflow: hidden;
+}
+
+.app-header-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.log-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .account-bar {
@@ -459,11 +529,14 @@ textarea {
 
 .log-card {
   border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  padding: 0.75rem;
+  border-radius: 0.65rem;
+  padding: 0.85rem 1rem;
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 0.75rem;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .log-title {

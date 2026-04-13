@@ -18,6 +18,7 @@ import {
   targetsForTemplate,
   weeksBetween,
 } from "@/lib/trainingProgression";
+import { AppLogo } from "@/components/AppLogo";
 import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { trainingTemplates, type TrainingDayTemplate } from "@/data/trainingPlan";
 import {
@@ -26,6 +27,7 @@ import {
   DEFAULT_LOAD_SETS,
   MAX_LOAD_SETS,
   maxWeightInEntry,
+  volumeKgRepsForSession,
   type ExerciseLoadEntry,
 } from "@/lib/trainingLoads";
 // sessionFilters no longer needed — month picker replaced week options
@@ -130,10 +132,13 @@ export default function Home() {
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [fitStepsStatus, setFitStepsStatus] = useState("");
   const [measurementWeight, setMeasurementWeight] = useState(String(defaultProfile.weightKg));
+  /** Texto libre para el peso del perfil (evita bugs del input type=number al borrar o usar coma). */
+  const [profileWeightDraft, setProfileWeightDraft] = useState(String(defaultProfile.weightKg));
   const [measurementWaist, setMeasurementWaist] = useState("");
   const [measurementHip, setMeasurementHip] = useState("");
   const [measurementThigh, setMeasurementThigh] = useState("");
   const [measurementNotes, setMeasurementNotes] = useState("");
+  const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
   const [activeView, setActiveViewRaw] = useState<ActiveView>("regla");
   useEffect(() => {
     const saved = localStorage.getItem("active-view-v1");
@@ -231,6 +236,7 @@ export default function Home() {
       setPeriodLog(loadPeriodLog());
       setProfile(prof);
       setMeasurementWeight(String(prof.weightKg));
+      setProfileWeightDraft(String(prof.weightKg));
       setMeasurementLog(loadBodyMeasurements());
       setStepsLog(loadStepsLog());
       setPeriodEndInput(today);
@@ -318,7 +324,7 @@ export default function Home() {
       if (error) {
         setSyncPullInFlight(false);
         if (needsAuth) {
-          setRemoteSyncMessage("Sesion no valida: vuelve a entrar con Google.");
+          setRemoteSyncMessage("Sesión no válida: vuelve a entrar con Google.");
         } else {
           setRemoteSyncMessage(error);
         }
@@ -345,6 +351,7 @@ export default function Home() {
       setPeriodLog(snapshot.periodLog);
       setProfile(snapshot.profile);
       setMeasurementWeight(String(snapshot.profile.weightKg));
+      setProfileWeightDraft(String(snapshot.profile.weightKg));
       setMeasurementLog(snapshot.measurementLog);
       setStepsLog(snapshot.stepsLog ?? []);
       if (snapshot.preferences?.progressionHorizonWeeks) {
@@ -463,9 +470,9 @@ export default function Home() {
     ? {
         name: "Menstrual (en curso)",
         description:
-          "Has marcado que la regla sigue activa. Prioriza recuperacion y adapta la carga segun sensaciones.",
+          "Has marcado que la regla sigue activa. Prioriza recuperación y adapta la carga según sensaciones.",
         hormones:
-          "Estrogeno y progesterona bajos; el utero descama el endometrio. Puede haber calambres o mas cansancio.",
+          "El estrógeno y la progesterona están bajos; el útero descama el endometrio. Puede haber calambres o más cansancio.",
       }
     : basePhase;
   const nextPeriod = useMemo(
@@ -597,6 +604,23 @@ export default function Home() {
     () => [...measurementLog].sort((a, b) => b.date.localeCompare(a.date)),
     [measurementLog],
   );
+
+  const weightHistoryEntries = useMemo(
+    () => sortedMeasurementLog.filter((x) => x.weightKg != null),
+    [sortedMeasurementLog],
+  );
+
+  const measuresHistoryEntries = useMemo(
+    () =>
+      sortedMeasurementLog.filter(
+        (x) =>
+          (x.waistCm != null && x.waistCm > 0) ||
+          (x.hipCm != null && x.hipCm > 0) ||
+          (x.thighCm != null && x.thighCm > 0) ||
+          (x.notes != null && x.notes.trim().length > 0),
+      ),
+    [sortedMeasurementLog],
+  );
   const periodDaysInCourse = useMemo(() => {
     if (!settings.isPeriodOngoing) return 0;
     const start = new Date(`${settings.lastPeriodStart}T00:00:00`);
@@ -609,6 +633,18 @@ export default function Home() {
     if (!clean) return null;
     const parsed = Number(clean);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function commitProfileWeightFromDraft() {
+    setProfile((p) => {
+      const n = parseOptionalNumber(profileWeightDraft);
+      if (n != null && n >= 30 && n <= 250) {
+        queueMicrotask(() => setProfileWeightDraft(String(n)));
+        return { ...p, weightKg: n };
+      }
+      queueMicrotask(() => setProfileWeightDraft(String(p.weightKg)));
+      return p;
+    });
   }
 
   function emptySetRow(): { w: string; r: string } {
@@ -777,25 +813,94 @@ export default function Home() {
     setPeriodLog((current) => current.filter((item) => item.id !== id));
   }
 
-  function addBodyMeasurement() {
-    const record: BodyMeasurementRecord = {
-      id: crypto.randomUUID(),
-      date: measurementDate,
-      weightKg: parseOptionalNumber(measurementWeight),
-      waistCm: parseOptionalNumber(measurementWaist),
-      hipCm: parseOptionalNumber(measurementHip),
-      thighCm: parseOptionalNumber(measurementThigh),
-      notes: measurementNotes.trim(),
-    };
-    setMeasurementLog((current) => [record, ...current]);
-    if (record.weightKg) {
-      setProfile((current) => ({ ...current, weightKg: record.weightKg ?? current.weightKg }));
-    }
+  function startEditMeasurement(item: BodyMeasurementRecord) {
+    setEditingMeasurementId(item.id);
+    setMeasurementDate(item.date);
+    setMeasurementWeight(item.weightKg != null ? String(item.weightKg) : "");
+    setMeasurementWaist(item.waistCm != null ? String(item.waistCm) : "");
+    setMeasurementHip(item.hipCm != null ? String(item.hipCm) : "");
+    setMeasurementThigh(item.thighCm != null ? String(item.thighCm) : "");
+    setMeasurementNotes(item.notes ?? "");
+  }
+
+  function cancelMeasurementEdit() {
+    setEditingMeasurementId(null);
+    const today = todayIsoClient();
+    setMeasurementDate(today);
+    setMeasurementWeight("");
+    setMeasurementWaist("");
+    setMeasurementHip("");
+    setMeasurementThigh("");
     setMeasurementNotes("");
+  }
+
+  function saveWeightEntry() {
+    const w = parseOptionalNumber(measurementWeight);
+    if (w == null) return;
+    if (editingMeasurementId) {
+      setMeasurementLog((current) =>
+        current.map((item) =>
+          item.id === editingMeasurementId ? { ...item, date: measurementDate, weightKg: w } : item,
+        ),
+      );
+    } else {
+      const record: BodyMeasurementRecord = {
+        id: crypto.randomUUID(),
+        date: measurementDate,
+        weightKg: w,
+        waistCm: null,
+        hipCm: null,
+        thighCm: null,
+        notes: "",
+      };
+      setMeasurementLog((current) => [record, ...current]);
+    }
+    setProfile((current) => ({ ...current, weightKg: w }));
+    setProfileWeightDraft(String(w));
+    cancelMeasurementEdit();
+  }
+
+  function saveMeasuresEntry() {
+    const waist = parseOptionalNumber(measurementWaist);
+    const hip = parseOptionalNumber(measurementHip);
+    const thigh = parseOptionalNumber(measurementThigh);
+    const notes = measurementNotes.trim();
+    const hasAny =
+      waist != null || hip != null || thigh != null || notes.length > 0;
+    if (!hasAny) return;
+    if (editingMeasurementId) {
+      setMeasurementLog((current) =>
+        current.map((item) =>
+          item.id === editingMeasurementId
+            ? {
+                ...item,
+                date: measurementDate,
+                waistCm: waist,
+                hipCm: hip,
+                thighCm: thigh,
+                notes,
+              }
+            : item,
+        ),
+      );
+    } else {
+      const record: BodyMeasurementRecord = {
+        id: crypto.randomUUID(),
+        date: measurementDate,
+        weightKg: null,
+        waistCm: waist,
+        hipCm: hip,
+        thighCm: thigh,
+        notes,
+      };
+      setMeasurementLog((current) => [record, ...current]);
+    }
+    cancelMeasurementEdit();
   }
 
   function removeBodyMeasurement(id: string) {
     setMeasurementLog((current) => current.filter((item) => item.id !== id));
+    if (editingMeasurementId === id) cancelMeasurementEdit();
   }
 
   function parseStepsInput(value: string): number | null {
@@ -928,7 +1033,16 @@ export default function Home() {
   }
 
   const trainingStats = useMemo(() => {
-    if (!hasHydrated) return { week: 0, month: 0, year: 0 };
+    if (!hasHydrated) {
+      return {
+        week: 0,
+        month: 0,
+        year: 0,
+        volumeWeek: 0,
+        volumeMonth: 0,
+        volumeYear: 0,
+      };
+    }
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
@@ -939,13 +1053,28 @@ export default function Home() {
     const mondayIso = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
     const yearPrefix = `${y}-`;
     const monthPrefix = `${y}-${String(m + 1).padStart(2, "0")}-`;
-    let week = 0, month = 0, year = 0;
+    let week = 0,
+      month = 0,
+      year = 0;
+    let volumeWeek = 0,
+      volumeMonth = 0,
+      volumeYear = 0;
     for (const entry of trainingLog) {
-      if (entry.date >= mondayIso) week++;
-      if (entry.date.startsWith(monthPrefix)) month++;
-      if (entry.date.startsWith(yearPrefix)) year++;
+      const vol = volumeKgRepsForSession(entry);
+      if (entry.date >= mondayIso) {
+        week++;
+        volumeWeek += vol;
+      }
+      if (entry.date.startsWith(monthPrefix)) {
+        month++;
+        volumeMonth += vol;
+      }
+      if (entry.date.startsWith(yearPrefix)) {
+        year++;
+        volumeYear += vol;
+      }
     }
-    return { week, month, year };
+    return { week, month, year, volumeWeek, volumeMonth, volumeYear };
   }, [trainingLog, hasHydrated]);
 
   const stepsStats = useMemo(() => {
@@ -969,12 +1098,17 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
-      <header className="card">
-        <p className="eyebrow">Control de ciclo + entrenamiento</p>
-        <h1 className="title">Tu panel semanal</h1>
-        <p className="muted">
-          Registra tu regla, mira en que fase estas y guarda tus sesiones de entreno en un solo sitio.
-        </p>
+      <header className="card app-header">
+        <div className="app-header-brand">
+          <AppLogo className="shrink-0" />
+          <div className="min-w-0">
+            <p className="eyebrow">Control de ciclo + entrenamiento</p>
+            <h1 className="title">Tu panel semanal</h1>
+            <p className="muted">
+              Registra tu regla, mira en qué fase estás y guarda tus sesiones de entreno en un solo sitio.
+            </p>
+          </div>
+        </div>
       </header>
 
       <section className="view-tabs">
@@ -997,7 +1131,7 @@ export default function Home() {
           className={`view-tab ${activeView === "nutricion" ? "is-active" : ""}`}
           onClick={() => setActiveView("nutricion")}
         >
-          Peso y nutricion
+          Peso y nutrición
         </button>
       </section>
 
@@ -1016,7 +1150,7 @@ export default function Home() {
         ) : (
           <>
             <span className="text-xs">
-              <span className="font-medium">{session?.user?.name ?? "Sesion"}</span>
+              <span className="font-medium">{session?.user?.name ?? "Sesión"}</span>
               {session?.user?.email ? <span className="muted"> · {session.user.email}</span> : null}
             </span>
             <button type="button" className="account-bar-btn" onClick={() => void signOut({ callbackUrl: "/" })}>
@@ -1034,7 +1168,7 @@ export default function Home() {
 
       <section className={`grid gap-4 md:grid-cols-4 ${activeView === "regla" ? "" : "hidden"}`}>
         <article className="metric-card">
-          <p className="metric-label">Dia de ciclo</p>
+          <p className="metric-label">Día de ciclo</p>
           <p className="metric-value">{hasHydrated ? cycleDay : "—"}</p>
         </article>
         <article className="metric-card">
@@ -1042,11 +1176,11 @@ export default function Home() {
           <p className="metric-value-small">{hasHydrated ? phase.name : "—"}</p>
         </article>
         <article className="metric-card">
-          <p className="metric-label">Proxima regla</p>
+          <p className="metric-label">Próxima regla</p>
           <p className="metric-value-small">{hasHydrated ? formatDate(nextPeriod) : "—"}</p>
         </article>
         <article className="metric-card">
-          <p className="metric-label">Dias restantes</p>
+          <p className="metric-label">Días restantes</p>
           <p className="metric-value">{hasHydrated ? daysToNext : "—"}</p>
         </article>
       </section>
@@ -1063,7 +1197,7 @@ export default function Home() {
                 <SpanishDatePicker value={periodStartInput} onChange={setPeriodStartInput} />
               </label>
               <button
-                className="action-button action-start"
+                className="action-button action-start mt-8 inline-flex items-center gap-2"
                 type="button"
                 onClick={() => registerPeriodStart(periodStartInput)}
               >
@@ -1073,13 +1207,13 @@ export default function Home() {
           ) : (
             <>
               <p className="phase-description mb-3">
-                Regla en curso desde {settings.lastPeriodStart} ({periodDaysInCourse} dias).
+                Regla en curso desde {settings.lastPeriodStart} ({periodDaysInCourse} días).
               </p>
 
               <div className="mb-4">
                 <p className="block-title mb-2">Registrar sangrado</p>
                 <label className="field mb-2">
-                  <span>Dia</span>
+                  <span>Día</span>
                   <SpanishDatePicker value={flowDateInput} onChange={setFlowDateInput} />
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -1121,7 +1255,7 @@ export default function Home() {
               <div className="mt-4 pt-3 border-t border-[var(--border)]">
                 <p className="block-title mb-2">Fin de regla</p>
                 <label className="field mb-2">
-                  <span>Ultimo dia con regla</span>
+                  <span>Último día con regla</span>
                   <SpanishDatePicker value={periodEndInput} onChange={setPeriodEndInput} />
                 </label>
                 <button
@@ -1140,14 +1274,14 @@ export default function Home() {
           <h2 className="section-title">Ajustes del ciclo</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="field">
-              <span>Ultimo inicio de regla</span>
+              <span>Último inicio de regla</span>
               <SpanishDatePicker
                 value={settings.lastPeriodStart}
                 onChange={(iso) => setSettings((current) => ({ ...current, lastPeriodStart: iso }))}
               />
             </label>
             <label className="field">
-              <span>Duracion del ciclo (dias)</span>
+              <span>Duración del ciclo (días)</span>
               <input
                 type="number"
                 min={20}
@@ -1162,7 +1296,7 @@ export default function Home() {
               />
             </label>
             <label className="field">
-              <span>Duracion de regla (dias)</span>
+              <span>Duración de regla (días)</span>
               <input
                 type="number"
                 min={2}
@@ -1183,7 +1317,9 @@ export default function Home() {
               <span className="block mt-2 text-[var(--muted)]">{phase.hormones}</span>
             ) : null}
             {latestClosedCurrentCycleLength ? (
-              <span className="block mt-2">Duracion real del ultimo ciclo cerrado: {latestClosedCurrentCycleLength} dias.</span>
+              <span className="block mt-2">
+                Duración real del último ciclo cerrado: {latestClosedCurrentCycleLength} días.
+              </span>
             ) : null}
           </p>
         </article>
@@ -1191,8 +1327,9 @@ export default function Home() {
 
       <section className={`grid gap-6 lg:grid-cols-2 ${activeView === "nutricion" ? "" : "hidden"}`}>
         <article className="card">
-          <h2 className="section-title">Registro de peso y medidas</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="section-title">Registrar peso corporal</h2>
+          <p className="muted mb-3 text-sm">Solo peso en kg. Actualiza también el peso del perfil para cálculos nutricionales.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="field">
               <span>Fecha</span>
               <SpanishDatePicker value={measurementDate} onChange={setMeasurementDate} />
@@ -1200,57 +1337,133 @@ export default function Home() {
             <label className="field">
               <span>Peso (kg)</span>
               <input
-                type="number"
-                step={0.1}
+                type="text"
+                inputMode="decimal"
                 value={measurementWeight}
-                onChange={(event) => setMeasurementWeight(event.target.value)}
+                onChange={(event) => setMeasurementWeight(event.target.value.replace(",", "."))}
+                placeholder="ej. 56,5"
               />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="primary-button" type="button" onClick={saveWeightEntry}>
+              {editingMeasurementId ? "Guardar peso" : "Añadir peso"}
+            </button>
+            {editingMeasurementId ? (
+              <button type="button" className="action-button action-end" onClick={cancelMeasurementEdit}>
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+        </article>
+
+        <article className="card">
+          <h2 className="section-title">Registrar medidas corporales</h2>
+          <p className="muted mb-3 text-sm">Cintura, cadera y muslo en cm. Opcional: notas (hinchazón, hora, etc.).</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="field">
+              <span>Fecha</span>
+              <SpanishDatePicker value={measurementDate} onChange={setMeasurementDate} />
             </label>
             <label className="field">
               <span>Cintura (cm)</span>
-              <input type="number" step={0.1} value={measurementWaist} onChange={(event) => setMeasurementWaist(event.target.value)} />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={measurementWaist}
+                onChange={(event) => setMeasurementWaist(event.target.value.replace(",", "."))}
+              />
             </label>
             <label className="field">
               <span>Cadera (cm)</span>
-              <input type="number" step={0.1} value={measurementHip} onChange={(event) => setMeasurementHip(event.target.value)} />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={measurementHip}
+                onChange={(event) => setMeasurementHip(event.target.value.replace(",", "."))}
+              />
             </label>
             <label className="field">
               <span>Muslo (cm)</span>
-              <input type="number" step={0.1} value={measurementThigh} onChange={(event) => setMeasurementThigh(event.target.value)} />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={measurementThigh}
+                onChange={(event) => setMeasurementThigh(event.target.value.replace(",", "."))}
+              />
             </label>
-            <label className="field sm:col-span-2 lg:col-span-3">
+            <label className="field sm:col-span-2">
               <span>Notas</span>
               <textarea
                 rows={2}
                 value={measurementNotes}
                 onChange={(event) => setMeasurementNotes(event.target.value)}
-                placeholder="Retencion, sensaciones, hora de la medicion..."
+                placeholder="Retención, sensaciones, hora de la medición…"
               />
             </label>
           </div>
-          <button className="primary-button" type="button" onClick={addBodyMeasurement}>
-            Guardar medicion
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="primary-button" type="button" onClick={saveMeasuresEntry}>
+              {editingMeasurementId ? "Guardar medidas" : "Añadir medidas"}
+            </button>
+            {editingMeasurementId ? (
+              <button type="button" className="action-button action-end" onClick={cancelMeasurementEdit}>
+                Cancelar
+              </button>
+            ) : null}
+          </div>
         </article>
 
         <article className="card">
-          <h2 className="section-title">Historico de peso y medidas</h2>
+          <h2 className="section-title">Histórico de peso</h2>
           <div className="stack">
-            {sortedMeasurementLog.length === 0 ? (
-              <p className="muted">Aun no hay mediciones guardadas.</p>
+            {weightHistoryEntries.length === 0 ? (
+              <p className="muted">Aún no hay pesos registrados.</p>
             ) : (
-              sortedMeasurementLog.map((item) => (
+              weightHistoryEntries.map((item) => (
                 <div key={item.id} className="log-card">
                   <div>
                     <p className="log-title">
-                      {item.date} · Peso {item.weightKg ?? "-"} kg · Cintura {item.waistCm ?? "-"} cm · Cadera{" "}
-                      {item.hipCm ?? "-"} cm · Muslo {item.thighCm ?? "-"} cm
+                      {item.date} · {item.weightKg} kg
+                    </p>
+                  </div>
+                  <div className="log-card-actions">
+                    <button type="button" className="edit-button" onClick={() => startEditMeasurement(item)}>
+                      Editar
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => removeBodyMeasurement(item.id)}>
+                      Borrar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <article className="card">
+          <h2 className="section-title">Histórico de medidas</h2>
+          <div className="stack">
+            {measuresHistoryEntries.length === 0 ? (
+              <p className="muted">Aún no hay medidas registradas.</p>
+            ) : (
+              measuresHistoryEntries.map((item) => (
+                <div key={item.id} className="log-card">
+                  <div>
+                    <p className="log-title">
+                      {item.date} · Cintura {item.waistCm ?? "—"} cm · Cadera {item.hipCm ?? "—"} cm · Muslo {item.thighCm ?? "—"}{" "}
+                      cm
                     </p>
                     {item.notes ? <p className="log-notes">{item.notes}</p> : null}
                   </div>
-                  <button type="button" className="danger-button" onClick={() => removeBodyMeasurement(item.id)}>
-                    Borrar
-                  </button>
+                  <div className="log-card-actions">
+                    <button type="button" className="edit-button" onClick={() => startEditMeasurement(item)}>
+                      Editar
+                    </button>
+                    <button type="button" className="danger-button" onClick={() => removeBodyMeasurement(item.id)}>
+                      Borrar
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -1260,10 +1473,10 @@ export default function Home() {
 
       <section className={`${activeView === "regla" ? "" : "hidden"}`}>
         <article className="card max-w-4xl">
-          <h2 className="section-title">Historico de reglas</h2>
+          <h2 className="section-title">Histórico de reglas</h2>
           <div className="stack">
             {sortedPeriodLog.length === 0 ? (
-              <p className="muted">Aun no hay registros de regla.</p>
+              <p className="muted">Aún no hay registros de regla.</p>
             ) : (
               sortedPeriodLog.map((record) => (
                 <div key={record.id} className="log-card">
@@ -1295,14 +1508,41 @@ export default function Home() {
         <article className="metric-card">
           <p className="metric-label">Esta semana</p>
           <p className="metric-value">{hasHydrated ? trainingStats.week : "—"}</p>
+          <p className="muted mt-1 text-xs">Sesiones registradas</p>
         </article>
         <article className="metric-card">
           <p className="metric-label">Este mes</p>
           <p className="metric-value">{hasHydrated ? trainingStats.month : "—"}</p>
+          <p className="muted mt-1 text-xs">Sesiones registradas</p>
         </article>
         <article className="metric-card">
           <p className="metric-label">Este año</p>
           <p className="metric-value">{hasHydrated ? trainingStats.year : "—"}</p>
+          <p className="muted mt-1 text-xs">Sesiones registradas</p>
+        </article>
+      </section>
+
+      <section className={`grid gap-4 md:grid-cols-3 ${activeView === "entreno" ? "" : "hidden"}`}>
+        <article className="metric-card">
+          <p className="metric-label">Volumen semanal</p>
+          <p className="metric-value-small">
+            {hasHydrated ? Math.round(trainingStats.volumeWeek).toLocaleString("es-ES") : "—"}
+          </p>
+          <p className="muted mt-1 text-xs">Suma de kg × reps en todas las series con carga</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Volumen mensual</p>
+          <p className="metric-value-small">
+            {hasHydrated ? Math.round(trainingStats.volumeMonth).toLocaleString("es-ES") : "—"}
+          </p>
+          <p className="muted mt-1 text-xs">Suma de kg × reps en todas las series con carga</p>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">Volumen anual</p>
+          <p className="metric-value-small">
+            {hasHydrated ? Math.round(trainingStats.volumeYear).toLocaleString("es-ES") : "—"}
+          </p>
+          <p className="muted mt-1 text-xs">Suma de kg × reps en todas las series con carga</p>
         </article>
       </section>
 
@@ -1387,7 +1627,7 @@ export default function Home() {
               <SpanishDatePicker value={newLogDate} onChange={setNewLogDate} />
             </label>
             <label className="field">
-              <span>Sesion</span>
+              <span>Sesión</span>
               <select
                 value={newLogTemplate}
                 onChange={(event) => {
@@ -1611,7 +1851,7 @@ export default function Home() {
         </article>
 
         <article className="card flex flex-col">
-          <h2 className="section-title">Historico de sesiones</h2>
+          <h2 className="section-title">Histórico de sesiones</h2>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             {!sessionFilterAll ? (
               <label className="field min-w-[12rem]">
@@ -1642,7 +1882,7 @@ export default function Home() {
             {filteredTrainingLogs.length === 0 ? (
               <p className="muted">
                 {trainingLog.length === 0
-                  ? "Aun no hay sesiones. Usa el formulario de la izquierda para registrar la primera."
+                  ? "Aún no hay sesiones. Usa el formulario de la izquierda para registrar la primera."
                   : "No hay sesiones en este mes."}
               </p>
             ) : (
@@ -1652,7 +1892,7 @@ export default function Home() {
                 return (
                   <div key={log.id} className={`session-card ${editingLogId === log.id ? "is-editing" : ""}`}>
                     <div className="session-card-header">
-                      <span className="session-card-title">{template?.name || "Sesion"}</span>
+                      <span className="session-card-title">{template?.name || "Sesión"}</span>
                       <span className="session-card-date">{log.date}</span>
                       <span className="session-card-effort">Esfuerzo {log.effort}/5</span>
                     </div>
@@ -1705,7 +1945,7 @@ export default function Home() {
           ) : null}
           {trainingLog.length > 0 ? (
             <div className="phase-description mt-4 shrink-0 text-sm">
-              <p className="font-semibold">Proxima sesion sugerida (hoy, segun bloque)</p>
+              <p className="font-semibold">Próxima sesión sugerida (hoy, según bloque)</p>
               <ul className="muted mt-2 space-y-2">
                 {trainingTemplates.map((t) => {
                   const rows = nextSessionTargets[t.id];
@@ -1762,14 +2002,14 @@ export default function Home() {
               </div>
             )}
             <p className="muted mt-2 text-xs">
-              Regla usada: subida cada 2 semanas (segun ejercicio). Si una semana no sale, repite carga y consolida tecnica.
+              Regla usada: subida cada 2 semanas (según ejercicio). Si una semana no sale, repite carga y consolida técnica.
             </p>
           </div>
         </article>
       </section>
 
       <section className={`card ${activeView === "nutricion" ? "" : "hidden"}`}>
-        <h2 className="section-title">Perfil y nutricion (orientativo)</h2>
+        <h2 className="section-title">Perfil y nutrición (orientativo)</h2>
         <p className="muted mb-3 text-sm">
           Datos por defecto: mujer, 28 anos, 160 cm, 56 kg. Ajusta si cambian. Las cifras son aproximadas; no
           sustituyen orientacion medica o de dietista.
@@ -1798,12 +2038,25 @@ export default function Home() {
           <label className="field">
             <span>Peso actual (kg)</span>
             <input
-              type="number"
-              min={35}
-              max={120}
-              step={0.1}
-              value={profile.weightKg}
-              onChange={(event) => setProfile((p) => ({ ...p, weightKg: Number(event.target.value) }))}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={profileWeightDraft}
+              onChange={(event) => {
+                const raw = event.target.value.replace(",", ".");
+                setProfileWeightDraft(raw);
+                const n = parseOptionalNumber(raw);
+                if (n != null && n >= 30 && n <= 250) {
+                  setProfile((p) => ({ ...p, weightKg: n }));
+                }
+              }}
+              onBlur={commitProfileWeightFromDraft}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  (event.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="ej. 58,5"
             />
           </label>
           <label className="field">
@@ -1889,7 +2142,7 @@ export default function Home() {
           <table>
             <thead>
               <tr>
-                <th>Sesion (plantilla)</th>
+                <th>Sesión (plantilla)</th>
                 <th>kcal sesion (aprox.)</th>
                 <th>kcal dia total (aprox.)</th>
                 <th>Proteina extra ese dia (aprox.)</th>

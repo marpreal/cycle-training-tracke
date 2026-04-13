@@ -46,6 +46,23 @@ export function maxWeightInEntry(entry: ExerciseLoadEntry): number {
   return Math.max(0, ...entry.sets.map((s) => s.weightKg));
 }
 
+/** Suma de kg × reps de todas las series de un ejercicio (volumen de carga). */
+export function volumeKgRepsForExercise(entry: ExerciseLoadEntry): number {
+  let total = 0;
+  for (const s of entry.sets) {
+    const w = Number.isFinite(s.weightKg) && s.weightKg > 0 ? s.weightKg : 0;
+    const r = Number.isFinite(s.reps) && s.reps > 0 ? Math.round(s.reps) : 0;
+    total += w * r;
+  }
+  return total;
+}
+
+/** Volumen total de la sesion (todos los ejercicios con cargas registradas). */
+export function volumeKgRepsForSession(log: { exerciseLoads?: ExerciseLoadEntry[] }): number {
+  if (!log.exerciseLoads?.length) return 0;
+  return log.exerciseLoads.reduce((acc, e) => acc + volumeKgRepsForExercise(e), 0);
+}
+
 function setsAreAllUniform(sets: OneSetLoad[]): boolean {
   if (sets.length < 2 || !sets[0]) return false;
   return sets.every((s) => s.weightKg === sets[0].weightKg && s.reps === sets[0].reps);

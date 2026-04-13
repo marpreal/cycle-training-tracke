@@ -16,7 +16,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Control de ciclo y entreno",
-  description: "Seguimiento de regla, fases del ciclo y registro semanal de entrenamientos",
+  description:
+    "Seguimiento de regla, fases del ciclo y registro semanal de entrenamientos",
 };
 
 export default function RootLayout({

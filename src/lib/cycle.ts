@@ -1,7 +1,7 @@
 export type PhaseInfo = {
   name: string;
   description: string;
-  /** Hormonas y contexto fisiologico (simple, orientativo). */
+  /** Hormonas y contexto fisiológico (simple, orientativo). */
   hormones: string;
 };
 
@@ -26,32 +26,34 @@ export function getPhaseInfo(cycleDay: number, cycleLength: number, periodLength
   if (cycleDay <= menstrualDays) {
     return {
       name: "Menstrual",
-      description: "La energia puede bajar. Prioriza recuperacion, hidratacion y entreno mas ligero si hace falta.",
+      description:
+        "La energía puede bajar. Prioriza recuperación, hidratación y entreno más ligero si hace falta.",
       hormones:
-        "Estrogeno y progesterona estan bajos; puede haber molestias o fatiga. El utero elimina el endometrio.",
+        "El estrógeno y la progesterona están bajos; puede haber molestias o fatiga. El útero elimina el endometrio.",
     };
   }
   if (cycleDay <= ovulationDay - 3) {
     return {
       name: "Folicular",
-      description: "Suele subir la energia. Buena ventana para progresar en fuerza.",
+      description: "Suele subir la energía. Buena ventana para progresar en fuerza.",
       hormones:
-        "El estrogeno sube (foliculos en el ovario); la progesterona sigue baja. Suelen notarse mas energia y mejor humor.",
+        "El estrógeno sube (folículos en el ovario); la progesterona sigue baja. Suelen notarse más energía y mejor humor.",
     };
   }
   if (cycleDay <= ovulationDay + 2) {
     return {
-      name: "Ovulacion",
-      description: "Suelen ser dias de buen rendimiento. Mantén buena tecnica y controla cargas.",
+      name: "Ovulación",
+      description: "Suelen ser días de buen rendimiento. Mantén buena técnica y controla cargas.",
       hormones:
-        "Pico de LH y liberacion del ovulo; el estrogeno es alto y luego cae algo. Puede coincidir con buen rendimiento.",
+        "Pico de LH y liberación del óvulo; el estrógeno es alto y luego cae algo. Puede coincidir con buen rendimiento.",
     };
   }
   return {
-    name: "Lutea",
-    description: "Prioriza sueno, nutricion estable y control de volumen. Ajusta intensidad segun recuperacion.",
+    name: "Lútea",
+    description:
+      "Prioriza sueño, nutrición estable y control de volumen. Ajusta intensidad según recuperación.",
     hormones:
-      "Tras la ovulacion sube la progesterona (cuerpo luteo). Puede haber retencion de liquido, mas hambre o cambios de animo antes de la regla.",
+      "Tras la ovulación sube la progesterona (cuerpo lúteo). Puede haber retención de líquido, más hambre o cambios de ánimo antes de la regla.",
   };
 }
 
