@@ -435,28 +435,65 @@ textarea {
   margin-bottom: 0.65rem;
 }
 
-.reorder-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1rem;
-  font-size: 0.55rem;
-  line-height: 1;
-  border-radius: 3px;
+.drag-handle {
+  cursor: grab;
   color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  font-size: 1.1rem;
+  line-height: 1;
+  user-select: none;
+  padding: 0.15rem 0.1rem;
+  transition: color 0.15s;
 }
-.reorder-btn:hover:not(:disabled) {
-  background: var(--border);
+.drag-handle:hover {
   color: var(--foreground);
 }
-.reorder-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.load-exercise-card[draggable] {
+  position: relative;
+  transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.load-exercise-card.is-dragging {
+  opacity: 0.35;
+  transform: scale(0.97);
+  box-shadow: none;
+}
+.load-exercise-card.drop-above {
+  transform: translateY(4px);
+  box-shadow: 0 -3px 0 0 var(--accent);
+}
+.load-exercise-card.drop-above::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: drop-indicator-pulse 0.8s ease-in-out infinite alternate;
+}
+.load-exercise-card.drop-below {
+  transform: translateY(-4px);
+  box-shadow: 0 3px 0 0 var(--accent);
+}
+.load-exercise-card.drop-below::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: drop-indicator-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes drop-indicator-pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
 }
 
 .load-detail-toggle {

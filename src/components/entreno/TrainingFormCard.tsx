@@ -63,9 +63,12 @@ export function TrainingFormCard({
     changeTemplate,
   } = form;
 
-  // ── Exercise ordering ───────────────────────────────────────────────────
+  // ── Exercise drag-and-drop ordering ─────────────────────────────────────
   const [orderedNames, setOrderedNames] = useState<string[]>([]);
   const prevNamesKey = useRef("");
+  const [draggingName, setDraggingName] = useState<string | null>(null);
+  const [dragOverName, setDragOverName] = useState<string | null>(null);
+  const [dragOverHalf, setDragOverHalf] = useState<"top" | "bottom">("top");
 
   useEffect(() => {
     const incoming = loadExercisesForForm.map((e) => e.name);
@@ -83,16 +86,45 @@ export function TrainingFormCard({
 
   const orderedExercises = orderedNames.map((n) => ({ name: n }));
 
-  function moveExercise(name: string, dir: -1 | 1) {
+  function handleDragStart(name: string, e: React.DragEvent) {
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingName(name);
+  }
+  function handleDragOver(e: React.DragEvent, name: string) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (!draggingName || draggingName === name) {
+      if (dragOverName) setDragOverName(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const half = e.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+    setDragOverName(name);
+    setDragOverHalf(half);
+  }
+  function handleDragLeave(e: React.DragEvent, name: string) {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+    if (dragOverName === name) setDragOverName(null);
+  }
+  function handleDrop(name: string) {
+    const src = draggingName;
+    setDraggingName(null);
+    setDragOverName(null);
+    if (!src || src === name) return;
     setOrderedNames((prev) => {
-      const idx = prev.indexOf(name);
-      if (idx < 0) return prev;
-      const target = idx + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[target]] = [next[target], next[idx]];
+      const srcIdx = prev.indexOf(src);
+      const dstIdx = prev.indexOf(name);
+      if (srcIdx < 0 || dstIdx < 0) return prev;
+      const next = prev.filter((n) => n !== src);
+      const insertAt = dragOverHalf === "top" ? next.indexOf(name) : next.indexOf(name) + 1;
+      next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
       return next;
     });
+  }
+  function handleDragEnd() {
+    setDraggingName(null);
+    setDragOverName(null);
   }
 
   const daySuggestion = DAY_SUGGESTIONS[dayOfWeekFor(newLogDate) ?? -1] ?? null;
@@ -180,15 +212,17 @@ export function TrainingFormCard({
             </button>
           </div>
           <div className="load-exercise-stack">
-            {orderedExercises.map((exercise, idx) => (
+            {orderedExercises.map((exercise) => (
               <ExerciseLoadInput
                 key={exercise.name}
                 exerciseName={exercise.name}
                 sets={getFormSetsForExercise(exercise.name)}
                 isDetail={isLoadDetail(exercise.name)}
                 isCustom={customExercisesForTemplate.includes(exercise.name)}
-                isFirst={idx === 0}
-                isLast={idx === orderedExercises.length - 1}
+                isDragging={draggingName === exercise.name}
+                dragIndicator={
+                  dragOverName === exercise.name ? dragOverHalf : null
+                }
                 lastKnownKg={latestLoadsForTemplate.get(exercise.name)}
                 onRemoveCustom={() => onRemoveCustomExercise(exercise.name)}
                 onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
@@ -196,8 +230,11 @@ export function TrainingFormCard({
                 onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
                 onAddSet={() => addSetForExercise(exercise.name)}
                 onRemoveSet={() => removeLastSetForExercise(exercise.name)}
-                onMoveUp={() => moveExercise(exercise.name, -1)}
-                onMoveDown={() => moveExercise(exercise.name, 1)}
+                onDragStart={(e) => handleDragStart(exercise.name, e)}
+                onDragOver={(e) => handleDragOver(e, exercise.name)}
+                onDragLeave={(e) => handleDragLeave(e, exercise.name)}
+                onDrop={() => handleDrop(exercise.name)}
+                onDragEnd={handleDragEnd}
               />
             ))}
           </div>

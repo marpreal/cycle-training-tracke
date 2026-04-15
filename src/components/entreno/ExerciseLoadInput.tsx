@@ -7,8 +7,8 @@ interface ExerciseLoadInputProps {
   sets: { w: string; r: string }[];
   isDetail: boolean;
   isCustom: boolean;
-  isFirst: boolean;
-  isLast: boolean;
+  isDragging: boolean;
+  dragIndicator: "top" | "bottom" | null;
   lastKnownKg: number | undefined;
   onRemoveCustom: () => void;
   onToggleDetail: (wantDetail: boolean) => void;
@@ -16,8 +16,11 @@ interface ExerciseLoadInputProps {
   onUpdateUniform: (field: "w" | "r", value: string) => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: (e: React.DragEvent) => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }
 
 export function ExerciseLoadInput({
@@ -25,8 +28,8 @@ export function ExerciseLoadInput({
   sets,
   isDetail,
   isCustom,
-  isFirst,
-  isLast,
+  isDragging,
+  dragIndicator,
   lastKnownKg,
   onRemoveCustom,
   onToggleDetail,
@@ -34,33 +37,32 @@ export function ExerciseLoadInput({
   onUpdateUniform,
   onAddSet,
   onRemoveSet,
-  onMoveUp,
-  onMoveDown,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: ExerciseLoadInputProps) {
+  const cls = [
+    "load-exercise-card",
+    isDragging && "is-dragging",
+    dragIndicator === "top" && "drop-above",
+    dragIndicator === "bottom" && "drop-below",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className="load-exercise-card">
+    <div
+      className={cls}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+    >
       <div className="load-exercise-card-head">
         <div className="flex items-center gap-1.5">
-          <div className="flex flex-col">
-            <button
-              type="button"
-              className="reorder-btn"
-              disabled={isFirst}
-              onClick={onMoveUp}
-              aria-label="Subir ejercicio"
-            >
-              ▲
-            </button>
-            <button
-              type="button"
-              className="reorder-btn"
-              disabled={isLast}
-              onClick={onMoveDown}
-              aria-label="Bajar ejercicio"
-            >
-              ▼
-            </button>
-          </div>
+          <span className="drag-handle" aria-label="Arrastrar para reordenar">⠿</span>
           <span className="load-exercise-name">{exerciseName}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">

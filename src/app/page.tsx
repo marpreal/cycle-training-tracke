@@ -146,9 +146,6 @@ export default function Home() {
   const [measurementNotes, setMeasurementNotes] = useState("");
   const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
 
-  // Lightweight revision counter so dirty-tracking detects plan changes without serializing large content.
-  const plansRevisionRef = useRef(0);
-
   // ── Sync refs ─────────────────────────────────────────────────────────────
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
@@ -268,7 +265,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated) return;
-    plansRevisionRef.current += 1;
     void savePlansToIDB(trainingPlans);
   }, [trainingPlans, hasHydrated]);
 
@@ -364,13 +360,16 @@ export default function Home() {
   }, [hasHydrated, sessionUserId, sessionStatus, sessionLoadingTimedOut]);
 
   // ── Remote sync: dirty-tracking + push ───────────────────────────────────
-  const plansRevision = plansRevisionRef.current;
+  const plansFP = useMemo(
+    () => trainingPlans.map((p) => `${p.id}:${p.name}:${p.content.length}`).join(","),
+    [trainingPlans],
+  );
   useEffect(() => {
     if (!hasHydrated) return;
     const pack = {
       settings, trainingLog, periodLog, profile,
       measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate,
-      plansRevision,
+      plansFP,
     };
     const next = JSON.stringify(pack);
     if (remoteApplyRef.current) {
@@ -386,7 +385,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, plansRevision]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, plansFP]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;

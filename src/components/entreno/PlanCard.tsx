@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { unzip } from "fflate";
 import type { TrainingPlan } from "@/lib/appTypes";
 
@@ -166,6 +166,12 @@ export function PlanCard({ plans, onAddPlan, onDeletePlan, onRenamePlan }: PlanC
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (plans.length > 0 && !plans.some((p) => p.id === activePlanId)) {
+      setActivePlanId(plans[0].id);
+    }
+  }, [plans, activePlanId]);
 
   const activePlan = plans.find((p) => p.id === activePlanId) ?? plans[0] ?? null;
 
