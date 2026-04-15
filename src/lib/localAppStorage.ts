@@ -15,7 +15,9 @@ import {
   STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
+  TRAINING_PLANS_KEY,
   type StepsRecord,
+  type TrainingPlan,
   type TrainingRecord,
   USER_PROFILE_KEY,
   type UserProfile,
@@ -187,6 +189,22 @@ export function loadProgressionHorizonWeeks(): number {
   if (!raw) return 6;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 6;
+}
+
+export function loadTrainingPlans(): TrainingPlan[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(TRAINING_PLANS_KEY);
+  if (!raw) return [];
+  if (rawTooLarge(raw, TRAINING_PLANS_KEY)) return [];
+  try {
+    const parsed = JSON.parse(raw) as TrainingPlan[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (p) => p && typeof p.id === "string" && typeof p.name === "string" && typeof p.content === "string",
+    );
+  } catch {
+    return [];
+  }
 }
 
 export function loadCustomExercisesByTemplate(): Record<string, string[]> {

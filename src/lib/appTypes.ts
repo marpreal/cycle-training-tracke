@@ -67,7 +67,16 @@ export type UserProfile = {
   weightGoalWeeks?: number | null;
 };
 
-export type ActiveView = "regla" | "entreno" | "nutricion";
+export type ActiveView = "regla" | "entreno" | "planes" | "nutricion";
+
+export type TrainingPlan = {
+  id: string;
+  name: string;
+  /** Plain text or HTML string, depending on contentType. */
+  content: string;
+  /** "html" when the content was produced from an ODT (may include <img> with data: URLs). */
+  contentType?: "text" | "html";
+};
 
 export const PERIOD_SETTINGS_KEY = "period-settings-v1";
 export const TRAINING_LOG_KEY = "training-log-v1";
@@ -78,6 +87,8 @@ export const STEPS_LOG_KEY = "steps-log-v1";
 export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
 /** Nombres de ejercicio extra por id de plantilla (JSON). */
 export const CUSTOM_EXERCISES_KEY = "custom-exercises-by-template-v1";
+/** Planes de entrenamiento personalizados (JSON). */
+export const TRAINING_PLANS_KEY = "training-plans-v1";
 
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */
 export const DEFAULT_ISO_DATE = "2000-01-01";

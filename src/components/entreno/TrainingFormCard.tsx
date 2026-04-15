@@ -4,8 +4,21 @@ import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { ExerciseLoadInput } from "./ExerciseLoadInput";
 import { trainingTemplates } from "@/data/trainingPlan";
 import { MAX_LOAD_SETS } from "@/lib/trainingLoads";
-import type { TrainingRecord } from "@/lib/appTypes";
+import { DEFAULT_ISO_DATE, type TrainingRecord } from "@/lib/appTypes";
 import type { UseTrainingFormReturn } from "@/hooks/useTrainingForm";
+
+/** Devuelve el día de la semana (0=dom, 1=lun…6=sab) para una fecha ISO, o null si no es válida. */
+function dayOfWeekFor(isoDate: string): number | null {
+  if (!isoDate || isoDate === DEFAULT_ISO_DATE) return null;
+  const d = new Date(`${isoDate}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d.getDay();
+}
+
+const DAY_SUGGESTIONS: Record<number, string> = {
+  1: "Sugerencia: Full body (lunes)",
+  3: "Sugerencia: Lower body (miércoles)",
+  5: "Sugerencia: Upper body (viernes)",
+};
 
 interface TrainingFormCardProps {
   form: UseTrainingFormReturn;
@@ -49,6 +62,8 @@ export function TrainingFormCard({
     changeTemplate,
   } = form;
 
+  const daySuggestion = DAY_SUGGESTIONS[dayOfWeekFor(newLogDate) ?? -1] ?? null;
+
   return (
     <article className="card">
       <h2 className="section-title">
@@ -60,7 +75,7 @@ export function TrainingFormCard({
           <span>Fecha</span>
           <SpanishDatePicker value={newLogDate} onChange={setNewLogDate} />
         </label>
-        <label className="field">
+        <div className="field">
           <span>Sesión</span>
           <select
             value={newLogTemplate}
@@ -72,7 +87,10 @@ export function TrainingFormCard({
               </option>
             ))}
           </select>
-        </label>
+          {daySuggestion ? (
+            <span className="mt-1 block text-xs text-[var(--muted)]">{daySuggestion}</span>
+          ) : null}
+        </div>
         <label className="field">
           <span>Esfuerzo (1-5)</span>
           <select
@@ -106,7 +124,7 @@ export function TrainingFormCard({
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <label className="field min-w-[12rem] flex-1">
-              <span>Ejercicio extra (esta sesión)</span>
+              <span>Añadir ejercicio a esta categoría</span>
               <input
                 type="text"
                 value={newCustomExerciseName}

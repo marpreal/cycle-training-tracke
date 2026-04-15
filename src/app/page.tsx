@@ -52,6 +52,7 @@ import {
   todayIsoClient,
   TRAINING_LOG_KEY,
   USER_PROFILE_KEY,
+  type TrainingPlan,
 } from "@/lib/appTypes";
 import {
   loadBodyMeasurements,
@@ -63,6 +64,12 @@ import {
   loadTrainingLog,
   loadUserProfile,
 } from "@/lib/localAppStorage";
+import {
+  loadPlansFromIDB,
+  migratePlansFromLocalStorage,
+  savePlansToIDB,
+} from "@/lib/planStorage";
+import { DEFAULT_PLAN_A_CONTENT } from "@/data/defaultPlan";
 import {
   bumpLocalDataTimestamp,
   getLocalDataTimestamp,
@@ -76,13 +83,14 @@ import { useTrainingForm } from "@/hooks/useTrainingForm";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
 import { useStepsForm } from "@/hooks/useStepsForm";
 // Components
-import { TrainingMetricsBar } from "@/components/entreno/TrainingMetricsBar";
+import { TrainingMetricsBar, type PersonalRecord } from "@/components/entreno/TrainingMetricsBar";
 import { TrainingFormCard } from "@/components/entreno/TrainingFormCard";
 import { TrainingHistoryPanel } from "@/components/entreno/TrainingHistoryPanel";
 import { NextSessionPanel } from "@/components/entreno/NextSessionPanel";
 import { ExportCard } from "@/components/entreno/ExportCard";
 import { StepsCard } from "@/components/entreno/StepsCard";
 import { TemplatesCard } from "@/components/entreno/TemplatesCard";
+import { PlanCard } from "@/components/entreno/PlanCard";
 
 const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
@@ -112,6 +120,7 @@ export default function Home() {
   const [customExercisesByTemplate, setCustomExercisesByTemplate] = useState<
     Record<string, string[]>
   >({});
+  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [activeView, setActiveViewRaw] = useState<ActiveView>("regla");
@@ -161,7 +170,7 @@ export default function Home() {
   // ── Initialisation ────────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("active-view-v1");
-    if (saved === "regla" || saved === "entreno" || saved === "nutricion") {
+    if (saved === "regla" || saved === "entreno" || saved === "planes" || saved === "nutricion") {
       setActiveViewRaw(saved);
     }
   }, []);
@@ -188,7 +197,27 @@ export default function Home() {
       form.initDate(today);
       steps.initDate(today);
       setMeasurementDate(today);
-      setHasHydrated(true);
+      // Plans live in IndexedDB; migrate from localStorage on first load
+      void (async () => {
+        const migrated = await migratePlansFromLocalStorage();
+        let plans: TrainingPlan[];
+        if (migrated.length > 0) {
+          plans = migrated;
+        } else {
+          plans = await loadPlansFromIDB();
+        }
+        if (plans.length === 0) {
+          plans = [{
+            id: "plan-a-default",
+            name: "Plan A",
+            content: DEFAULT_PLAN_A_CONTENT,
+            contentType: "text",
+          }];
+          await savePlansToIDB(plans);
+        }
+        setTrainingPlans(plans);
+        setHasHydrated(true);
+      })();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -196,43 +225,48 @@ export default function Home() {
   // ── localStorage persistence ──────────────────────────────────────────────
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(PERIOD_SETTINGS_KEY, JSON.stringify(settings));
+    try { localStorage.setItem(PERIOD_SETTINGS_KEY, JSON.stringify(settings)); } catch { /* quota */ }
   }, [settings, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(TRAINING_LOG_KEY, JSON.stringify(trainingLog));
+    try { localStorage.setItem(TRAINING_LOG_KEY, JSON.stringify(trainingLog)); } catch { /* quota */ }
   }, [trainingLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(PERIOD_LOG_KEY, JSON.stringify(periodLog));
+    try { localStorage.setItem(PERIOD_LOG_KEY, JSON.stringify(periodLog)); } catch { /* quota */ }
   }, [periodLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+    try { localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile)); } catch { /* quota */ }
   }, [profile, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(BODY_MEASUREMENTS_KEY, JSON.stringify(measurementLog));
+    try { localStorage.setItem(BODY_MEASUREMENTS_KEY, JSON.stringify(measurementLog)); } catch { /* quota */ }
   }, [measurementLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(STEPS_LOG_KEY, JSON.stringify(stepsLog));
+    try { localStorage.setItem(STEPS_LOG_KEY, JSON.stringify(stepsLog)); } catch { /* quota */ }
   }, [stepsLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(PROGRESSION_HORIZON_KEY, String(progressionHorizonWeeks));
+    try { localStorage.setItem(PROGRESSION_HORIZON_KEY, String(progressionHorizonWeeks)); } catch { /* quota */ }
   }, [progressionHorizonWeeks, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
-    localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercisesByTemplate));
+    try { localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercisesByTemplate)); } catch { /* quota */ }
   }, [customExercisesByTemplate, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    void savePlansToIDB(trainingPlans);
+  }, [trainingPlans, hasHydrated]);
 
   useEffect(() => {
     if (sessionStatus !== "loading") {
@@ -585,6 +619,30 @@ export default function Home() {
     [stepsLog],
   );
 
+  const personalRecords = useMemo<PersonalRecord[]>(() => {
+    if (!hasHydrated) return [];
+    const map = new Map<string, { weightKg: number; date: string }>();
+    for (const entry of trainingLog) {
+      for (const load of entry.exerciseLoads ?? []) {
+        const max = maxWeightInEntry(load);
+        if (max <= 0) continue;
+        const prev = map.get(load.exerciseName);
+        if (!prev || max > prev.weightKg) {
+          map.set(load.exerciseName, { weightKg: max, date: entry.date });
+        }
+      }
+    }
+    const yearPrefix = `${new Date().getFullYear()}-`;
+    return Array.from(map.entries())
+      .map(([name, { weightKg, date }]) => ({
+        name,
+        weightKg,
+        date,
+        isThisYear: date.startsWith(yearPrefix),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [trainingLog, hasHydrated]);
+
   const openPeriod = useMemo(
     () => periodLog.find((item) => item.endDate === null) ?? null,
     [periodLog],
@@ -809,6 +867,19 @@ export default function Home() {
     if (editingMeasurementId === id) cancelMeasurementEdit();
   }
 
+  // ── Handlers: training plans ─────────────────────────────────────────────
+  function addTrainingPlan(plan: TrainingPlan) {
+    setTrainingPlans((cur) => [...cur, plan]);
+  }
+
+  function deleteTrainingPlan(id: string) {
+    setTrainingPlans((cur) => cur.filter((p) => p.id !== id));
+  }
+
+  function renameTrainingPlan(id: string, name: string) {
+    setTrainingPlans((cur) => cur.map((p) => (p.id === id ? { ...p, name } : p)));
+  }
+
   // ── Handlers: steps ───────────────────────────────────────────────────────
   function saveStepsEntry() {
     if (steps.stepDateInput === DEFAULT_ISO_DATE) return;
@@ -870,14 +941,20 @@ export default function Home() {
 
       {/* Tab navigation */}
       <section className="view-tabs">
-        {(["regla", "entreno", "nutricion"] as const).map((view) => (
+        {(["regla", "entreno", "planes", "nutricion"] as const).map((view) => (
           <button
             key={view}
             type="button"
             className={`view-tab ${activeView === view ? "is-active" : ""}`}
             onClick={() => setActiveView(view)}
           >
-            {view === "regla" ? "Regla" : view === "entreno" ? "Ejercicio" : "Peso y nutrición"}
+            {view === "regla"
+              ? "Regla"
+              : view === "entreno"
+                ? "Ejercicio"
+                : view === "planes"
+                  ? "Planes"
+                  : "Peso y nutrición"}
           </button>
         ))}
       </section>
@@ -1101,6 +1178,16 @@ export default function Home() {
         </article>
       </section>
 
+      {/* ── PLANES view ─────────────────────────────────────────────────────── */}
+      <section className={`mx-auto w-full max-w-4xl ${activeView === "planes" ? "" : "hidden"}`}>
+        <PlanCard
+          plans={trainingPlans}
+          onAddPlan={addTrainingPlan}
+          onDeletePlan={deleteTrainingPlan}
+          onRenamePlan={renameTrainingPlan}
+        />
+      </section>
+
       {/* ── NUTRICION view ───────────────────────────────────────────────────── */}
       <section className={`grid gap-6 lg:grid-cols-2 ${activeView === "nutricion" ? "" : "hidden"}`}>
         <article className="card">
@@ -1311,20 +1398,7 @@ export default function Home() {
 
       {/* Combined stats: sessions + volume in one bar */}
       <section className={activeView === "entreno" ? "" : "hidden"}>
-        <TrainingMetricsBar hasHydrated={hasHydrated} stats={trainingStats} />
-      </section>
-
-      {/* Steps */}
-      <section className={`grid gap-6 ${activeView === "entreno" ? "" : "hidden"}`}>
-        <StepsCard
-          steps={steps}
-          stepsStats={stepsStats}
-          sortedStepsLog={sortedStepsLog}
-          hasHydrated={hasHydrated}
-          sessionStatus={sessionStatus}
-          onSave={saveStepsEntry}
-          onRemove={removeStepsEntry}
-        />
+        <TrainingMetricsBar hasHydrated={hasHydrated} stats={trainingStats} personalRecords={personalRecords} />
       </section>
 
       {/* Training form + history */}
@@ -1358,6 +1432,19 @@ export default function Home() {
           sessionPageClamped={sessionHistory.sessionPageClamped}
           sessionTotalPages={sessionHistory.sessionTotalPages}
           onPageChange={sessionHistory.setSessionPage}
+        />
+      </section>
+
+      {/* Steps — below exercises */}
+      <section className={`grid gap-6 ${activeView === "entreno" ? "" : "hidden"}`}>
+        <StepsCard
+          steps={steps}
+          stepsStats={stepsStats}
+          sortedStepsLog={sortedStepsLog}
+          hasHydrated={hasHydrated}
+          sessionStatus={sessionStatus}
+          onSave={saveStepsEntry}
+          onRemove={removeStepsEntry}
         />
       </section>
 

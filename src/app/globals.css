@@ -720,3 +720,59 @@ textarea {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+
+/* ── Plan HTML content (rendered from ODT) ──────────────────────────────── */
+.plan-html-content {
+  line-height: 1.65;
+  font-size: 0.9rem;
+  color: var(--foreground);
+  overflow-wrap: break-word;
+}
+
+.plan-html-content h1,
+.plan-html-content h2,
+.plan-html-content h3,
+.plan-html-content h4 {
+  font-weight: 700;
+  margin: 1.2rem 0 0.4rem;
+  line-height: 1.25;
+}
+
+.plan-html-content h1 { font-size: 1.3rem; }
+.plan-html-content h2 { font-size: 1.1rem; }
+.plan-html-content h3 { font-size: 1rem; }
+
+.plan-html-content p {
+  margin: 0.35rem 0;
+}
+
+.plan-html-content ul {
+  margin: 0.4rem 0 0.4rem 1.4rem;
+  list-style: disc;
+}
+
+.plan-html-content li {
+  margin: 0.15rem 0;
+}
+
+.plan-html-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+
+.plan-html-content td,
+.plan-html-content th {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.plan-html-content img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0.4rem;
+  margin: 0.75rem 0;
+}
