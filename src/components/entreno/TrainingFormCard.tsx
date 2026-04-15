@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { ExerciseLoadInput } from "./ExerciseLoadInput";
 import { trainingTemplates } from "@/data/trainingPlan";
@@ -63,12 +63,14 @@ export function TrainingFormCard({
     changeTemplate,
   } = form;
 
-  // ── Exercise drag-and-drop ordering ─────────────────────────────────────
+  // ── Exercise drag-and-drop ordering (mouse + touch) ─────────────────────
   const [orderedNames, setOrderedNames] = useState<string[]>([]);
   const prevNamesKey = useRef("");
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [dragOverName, setDragOverName] = useState<string | null>(null);
   const [dragOverHalf, setDragOverHalf] = useState<"top" | "bottom">("top");
+  const stackRef = useRef<HTMLDivElement>(null);
+  const touchStateRef = useRef<{ name: string; startY: number; active: boolean } | null>(null);
 
   useEffect(() => {
     const incoming = loadExercisesForForm.map((e) => e.name);
@@ -86,43 +88,107 @@ export function TrainingFormCard({
 
   const orderedExercises = orderedNames.map((n) => ({ name: n }));
 
-  function handleDragStart(name: string, e: React.DragEvent) {
-    e.dataTransfer.effectAllowed = "move";
-    setDraggingName(name);
+  function nameFromPoint(x: number, y: number): { name: string; half: "top" | "bottom" } | null {
+    const stack = stackRef.current;
+    if (!stack) return null;
+    const cards = stack.querySelectorAll<HTMLElement>("[data-exercise]");
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) {
+        return {
+          name: card.dataset.exercise!,
+          half: y < rect.top + rect.height / 2 ? "top" : "bottom",
+        };
+      }
+    }
+    return null;
   }
-  function handleDragOver(e: React.DragEvent, name: string) {
+
+  const commitDrop = useCallback(
+    (src: string, dst: string, half: "top" | "bottom") => {
+      if (src === dst) return;
+      setOrderedNames((prev) => {
+        const srcIdx = prev.indexOf(src);
+        const dstIdx = prev.indexOf(dst);
+        if (srcIdx < 0 || dstIdx < 0) return prev;
+        const next = prev.filter((n) => n !== src);
+        const insertAt = half === "top" ? next.indexOf(dst) : next.indexOf(dst) + 1;
+        next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
+        return next;
+      });
+    },
+    [],
+  );
+
+  // ── Desktop drag events (delegated on stack container) ─────────────────
+  function onStackDragStart(e: React.DragEvent) {
+    const handle = (e.target as HTMLElement).closest("[data-drag-handle]");
+    if (!handle) { e.preventDefault(); return; }
+    const card = (e.target as HTMLElement).closest<HTMLElement>("[data-exercise]");
+    if (!card) return;
+    e.dataTransfer.effectAllowed = "move";
+    setDraggingName(card.dataset.exercise!);
+  }
+  function onStackDragOver(e: React.DragEvent) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    if (!draggingName || draggingName === name) {
+    const hit = nameFromPoint(e.clientX, e.clientY);
+    if (!hit || !draggingName || hit.name === draggingName) {
       if (dragOverName) setDragOverName(null);
       return;
     }
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const half = e.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
-    setDragOverName(name);
-    setDragOverHalf(half);
+    setDragOverName(hit.name);
+    setDragOverHalf(hit.half);
   }
-  function handleDragLeave(e: React.DragEvent, name: string) {
-    const related = e.relatedTarget as Node | null;
-    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
-    if (dragOverName === name) setDragOverName(null);
-  }
-  function handleDrop(name: string) {
-    const src = draggingName;
+  function onStackDrop(e: React.DragEvent) {
+    e.preventDefault();
+    if (draggingName && dragOverName) {
+      commitDrop(draggingName, dragOverName, dragOverHalf);
+    }
     setDraggingName(null);
     setDragOverName(null);
-    if (!src || src === name) return;
-    setOrderedNames((prev) => {
-      const srcIdx = prev.indexOf(src);
-      const dstIdx = prev.indexOf(name);
-      if (srcIdx < 0 || dstIdx < 0) return prev;
-      const next = prev.filter((n) => n !== src);
-      const insertAt = dragOverHalf === "top" ? next.indexOf(name) : next.indexOf(name) + 1;
-      next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
-      return next;
-    });
   }
-  function handleDragEnd() {
+  function onStackDragEnd() {
+    setDraggingName(null);
+    setDragOverName(null);
+  }
+
+  // ── Touch drag events ─────────────────────────────────────────────────
+  const TOUCH_ACTIVATE_PX = 8;
+
+  function onStackTouchStart(e: React.TouchEvent) {
+    const handle = (e.target as HTMLElement).closest("[data-drag-handle]");
+    if (!handle) return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>("[data-exercise]");
+    if (!card) return;
+    const t = e.touches[0];
+    touchStateRef.current = { name: card.dataset.exercise!, startY: t.clientY, active: false };
+  }
+  function onStackTouchMove(e: React.TouchEvent) {
+    const ts = touchStateRef.current;
+    if (!ts) return;
+    const t = e.touches[0];
+    if (!ts.active) {
+      if (Math.abs(t.clientY - ts.startY) < TOUCH_ACTIVATE_PX) return;
+      ts.active = true;
+      setDraggingName(ts.name);
+    }
+    e.preventDefault();
+    const hit = nameFromPoint(t.clientX, t.clientY);
+    if (!hit || hit.name === ts.name) {
+      if (dragOverName) setDragOverName(null);
+      return;
+    }
+    setDragOverName(hit.name);
+    setDragOverHalf(hit.half);
+  }
+  function onStackTouchEnd() {
+    const ts = touchStateRef.current;
+    touchStateRef.current = null;
+    if (!ts?.active) { setDraggingName(null); setDragOverName(null); return; }
+    if (ts.name && dragOverName) {
+      commitDrop(ts.name, dragOverName, dragOverHalf);
+    }
     setDraggingName(null);
     setDragOverName(null);
   }
@@ -211,7 +277,18 @@ export function TrainingFormCard({
               Añadir ejercicio
             </button>
           </div>
-          <div className="load-exercise-stack">
+          <div
+            className="load-exercise-stack"
+            ref={stackRef}
+            onDragStart={onStackDragStart}
+            onDragOver={onStackDragOver}
+            onDrop={onStackDrop}
+            onDragEnd={onStackDragEnd}
+            onTouchStart={onStackTouchStart}
+            onTouchMove={onStackTouchMove}
+            onTouchEnd={onStackTouchEnd}
+            onTouchCancel={onStackTouchEnd}
+          >
             {orderedExercises.map((exercise) => (
               <ExerciseLoadInput
                 key={exercise.name}
@@ -230,11 +307,6 @@ export function TrainingFormCard({
                 onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
                 onAddSet={() => addSetForExercise(exercise.name)}
                 onRemoveSet={() => removeLastSetForExercise(exercise.name)}
-                onDragStart={(e) => handleDragStart(exercise.name, e)}
-                onDragOver={(e) => handleDragOver(e, exercise.name)}
-                onDragLeave={(e) => handleDragLeave(e, exercise.name)}
-                onDrop={() => handleDrop(exercise.name)}
-                onDragEnd={handleDragEnd}
               />
             ))}
           </div>

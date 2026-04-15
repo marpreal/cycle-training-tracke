@@ -16,11 +16,6 @@ interface ExerciseLoadInputProps {
   onUpdateUniform: (field: "w" | "r", value: string) => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragLeave: (e: React.DragEvent) => void;
-  onDrop: () => void;
-  onDragEnd: () => void;
 }
 
 export function ExerciseLoadInput({
@@ -37,11 +32,6 @@ export function ExerciseLoadInput({
   onUpdateUniform,
   onAddSet,
   onRemoveSet,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onDragEnd,
 }: ExerciseLoadInputProps) {
   const cls = [
     "load-exercise-card",
@@ -51,18 +41,10 @@ export function ExerciseLoadInput({
   ].filter(Boolean).join(" ");
 
   return (
-    <div
-      className={cls}
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
-    >
+    <div className={cls} data-exercise={exerciseName}>
       <div className="load-exercise-card-head">
         <div className="flex items-center gap-1.5">
-          <span className="drag-handle" aria-label="Arrastrar para reordenar">⠿</span>
+          <span className="drag-handle" data-drag-handle aria-label="Arrastrar para reordenar">⠿</span>
           <span className="load-exercise-name">{exerciseName}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
