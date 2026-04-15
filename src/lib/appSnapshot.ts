@@ -8,6 +8,7 @@ import {
   type PeriodSettings,
   type StepsRecord,
   todayIsoClient,
+  type TrainingPlan,
   type TrainingRecord,
   type UserProfile,
 } from "@/lib/appTypes";
@@ -21,6 +22,7 @@ export type AppSnapshotV1 = {
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
+  trainingPlans?: TrainingPlan[];
   /** Preferencias UI que antes no iban a localStorage. */
   preferences?: {
     progressionHorizonWeeks: number;
@@ -36,6 +38,7 @@ export function buildSnapshot(parts: {
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
+  trainingPlans?: TrainingPlan[];
   preferences?: AppSnapshotV1["preferences"];
 }): AppSnapshotV1 {
   return {
@@ -183,5 +186,14 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   };
   if (Array.isArray(o.stepsLog)) out.stepsLog = o.stepsLog;
   if (preferences) out.preferences = preferences;
+  if (Array.isArray(o.trainingPlans)) {
+    out.trainingPlans = (o.trainingPlans as TrainingPlan[]).filter(
+      (p) =>
+        p &&
+        typeof p.id === "string" &&
+        typeof p.name === "string" &&
+        typeof p.content === "string",
+    );
+  }
   return out;
 }

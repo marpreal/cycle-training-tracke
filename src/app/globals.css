@@ -435,6 +435,30 @@ textarea {
   margin-bottom: 0.65rem;
 }
 
+.reorder-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1rem;
+  font-size: 0.55rem;
+  line-height: 1;
+  border-radius: 3px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.reorder-btn:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--foreground);
+}
+.reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 .load-detail-toggle {
   display: inline-flex;
   align-items: center;

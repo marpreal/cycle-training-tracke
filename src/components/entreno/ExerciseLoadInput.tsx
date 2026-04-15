@@ -7,6 +7,8 @@ interface ExerciseLoadInputProps {
   sets: { w: string; r: string }[];
   isDetail: boolean;
   isCustom: boolean;
+  isFirst: boolean;
+  isLast: boolean;
   lastKnownKg: number | undefined;
   onRemoveCustom: () => void;
   onToggleDetail: (wantDetail: boolean) => void;
@@ -14,6 +16,8 @@ interface ExerciseLoadInputProps {
   onUpdateUniform: (field: "w" | "r", value: string) => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }
 
 export function ExerciseLoadInput({
@@ -21,6 +25,8 @@ export function ExerciseLoadInput({
   sets,
   isDetail,
   isCustom,
+  isFirst,
+  isLast,
   lastKnownKg,
   onRemoveCustom,
   onToggleDetail,
@@ -28,11 +34,35 @@ export function ExerciseLoadInput({
   onUpdateUniform,
   onAddSet,
   onRemoveSet,
+  onMoveUp,
+  onMoveDown,
 }: ExerciseLoadInputProps) {
   return (
     <div className="load-exercise-card">
       <div className="load-exercise-card-head">
-        <span className="load-exercise-name">{exerciseName}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex flex-col">
+            <button
+              type="button"
+              className="reorder-btn"
+              disabled={isFirst}
+              onClick={onMoveUp}
+              aria-label="Subir ejercicio"
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              className="reorder-btn"
+              disabled={isLast}
+              onClick={onMoveDown}
+              aria-label="Bajar ejercicio"
+            >
+              ▼
+            </button>
+          </div>
+          <span className="load-exercise-name">{exerciseName}</span>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {isCustom ? (
             <button

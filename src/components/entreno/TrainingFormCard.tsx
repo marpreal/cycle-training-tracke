@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { ExerciseLoadInput } from "./ExerciseLoadInput";
 import { trainingTemplates } from "@/data/trainingPlan";
@@ -61,6 +62,38 @@ export function TrainingFormCard({
     removeLastSetForExercise,
     changeTemplate,
   } = form;
+
+  // ── Exercise ordering ───────────────────────────────────────────────────
+  const [orderedNames, setOrderedNames] = useState<string[]>([]);
+  const prevNamesKey = useRef("");
+
+  useEffect(() => {
+    const incoming = loadExercisesForForm.map((e) => e.name);
+    const key = incoming.join("\0");
+    if (key === prevNamesKey.current) return;
+    prevNamesKey.current = key;
+    setOrderedNames((prev) => {
+      const incomingSet = new Set(incoming);
+      const kept = prev.filter((n) => incomingSet.has(n));
+      const keptSet = new Set(kept);
+      const added = incoming.filter((n) => !keptSet.has(n));
+      return [...kept, ...added];
+    });
+  }, [loadExercisesForForm]);
+
+  const orderedExercises = orderedNames.map((n) => ({ name: n }));
+
+  function moveExercise(name: string, dir: -1 | 1) {
+    setOrderedNames((prev) => {
+      const idx = prev.indexOf(name);
+      if (idx < 0) return prev;
+      const target = idx + dir;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  }
 
   const daySuggestion = DAY_SUGGESTIONS[dayOfWeekFor(newLogDate) ?? -1] ?? null;
 
@@ -147,13 +180,15 @@ export function TrainingFormCard({
             </button>
           </div>
           <div className="load-exercise-stack">
-            {loadExercisesForForm.map((exercise) => (
+            {orderedExercises.map((exercise, idx) => (
               <ExerciseLoadInput
                 key={exercise.name}
                 exerciseName={exercise.name}
                 sets={getFormSetsForExercise(exercise.name)}
                 isDetail={isLoadDetail(exercise.name)}
                 isCustom={customExercisesForTemplate.includes(exercise.name)}
+                isFirst={idx === 0}
+                isLast={idx === orderedExercises.length - 1}
                 lastKnownKg={latestLoadsForTemplate.get(exercise.name)}
                 onRemoveCustom={() => onRemoveCustomExercise(exercise.name)}
                 onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
@@ -161,6 +196,8 @@ export function TrainingFormCard({
                 onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
                 onAddSet={() => addSetForExercise(exercise.name)}
                 onRemoveSet={() => removeLastSetForExercise(exercise.name)}
+                onMoveUp={() => moveExercise(exercise.name, -1)}
+                onMoveDown={() => moveExercise(exercise.name, 1)}
               />
             ))}
           </div>

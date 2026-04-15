@@ -146,6 +146,9 @@ export default function Home() {
   const [measurementNotes, setMeasurementNotes] = useState("");
   const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
 
+  // Lightweight revision counter so dirty-tracking detects plan changes without serializing large content.
+  const plansRevisionRef = useRef(0);
+
   // ── Sync refs ─────────────────────────────────────────────────────────────
   const [remoteSyncOk, setRemoteSyncOk] = useState(false);
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
@@ -265,6 +268,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!hasHydrated) return;
+    plansRevisionRef.current += 1;
     void savePlansToIDB(trainingPlans);
   }, [trainingPlans, hasHydrated]);
 
@@ -347,6 +351,10 @@ export default function Home() {
       if (snapshot.preferences?.customExercisesByTemplate) {
         setCustomExercisesByTemplate(snapshot.preferences.customExercisesByTemplate);
       }
+      if (snapshot.trainingPlans && snapshot.trainingPlans.length > 0) {
+        setTrainingPlans(snapshot.trainingPlans);
+        void savePlansToIDB(snapshot.trainingPlans);
+      }
       setLocalDataTimestamp(snapshot.updatedAt);
       remotePullDoneForUserRef.current = sessionUserId;
     })();
@@ -356,11 +364,13 @@ export default function Home() {
   }, [hasHydrated, sessionUserId, sessionStatus, sessionLoadingTimedOut]);
 
   // ── Remote sync: dirty-tracking + push ───────────────────────────────────
+  const plansRevision = plansRevisionRef.current;
   useEffect(() => {
     if (!hasHydrated) return;
     const pack = {
       settings, trainingLog, periodLog, profile,
       measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate,
+      plansRevision,
     };
     const next = JSON.stringify(pack);
     if (remoteApplyRef.current) {
@@ -376,7 +386,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, plansRevision]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -386,6 +396,7 @@ export default function Home() {
       pushTimerRef.current = null;
       const snap = buildSnapshot({
         settings, trainingLog, periodLog, profile, measurementLog, stepsLog,
+        trainingPlans,
         preferences: { progressionHorizonWeeks, customExercisesByTemplate },
       });
       void (async () => {
@@ -399,7 +410,7 @@ export default function Home() {
       })();
     }, 1200);
     return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
-  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, trainingPlans]);
 
   // ── Computed values ───────────────────────────────────────────────────────
   const latestClosedCurrentCycleLength = useMemo(() => {
