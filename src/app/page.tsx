@@ -443,7 +443,7 @@ export default function Home() {
     [settings.lastPeriodStart, settings.cycleLength],
   );
   const daysToNext = useMemo(
-    () => Math.max(0, Math.ceil((nextPeriod.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))),
+    () => Math.ceil((nextPeriod.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
     [nextPeriod],
   );
 
@@ -1023,7 +1023,7 @@ export default function Home() {
           <p className="metric-value-small">{hasHydrated ? formatDate(nextPeriod) : "—"}</p>
         </article>
         <article className="metric-card">
-          <p className="metric-label">Días restantes</p>
+          <p className="metric-label">{hasHydrated && daysToNext < 0 ? "Retraso (días)" : "Días restantes"}</p>
           <p className="metric-value">{hasHydrated ? daysToNext : "—"}</p>
         </article>
       </section>
