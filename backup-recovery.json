@@ -1,0 +1,1229 @@
+{
+  "exportedAt": "2026-04-23T21:30:00.000Z",
+  "training-log-v1": [
+    {
+      "id": "b47a2239-4490-4458-9c8a-a66a6c82791c",
+      "date": "2026-04-22",
+      "templateId": "upper",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Remo con barra",
+          "sets": [
+            {
+              "weightKg": 40.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 40.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 40.7,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press hombro mancuernas",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 8
+            },
+            {
+              "weightKg": 10,
+              "reps": 7
+            },
+            {
+              "weightKg": 10,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press pecho mancuernas",
+          "sets": [
+            {
+              "weightKg": 32.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 32.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 32.7,
+              "reps": 4
+            }
+          ]
+        },
+        {
+          "exerciseName": "Curl biceps",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 8
+            },
+            {
+              "weightKg": 10,
+              "reps": 8
+            },
+            {
+              "weightKg": 10,
+              "reps": 6
+            }
+          ]
+        },
+        {
+          "exerciseName": "Extension triceps mancuerna",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e6cb323d-745c-4f1e-b40b-69073ccce76c",
+      "date": "2026-04-20",
+      "templateId": "lower",
+      "effort": 5,
+      "notes": "",
+      "exerciseLoads": []
+    },
+    {
+      "id": "6ec75387-8f06-49f4-9f4b-64e59bfc3196",
+      "date": "2026-04-20",
+      "templateId": "lower",
+      "effort": 5,
+      "notes": "Me siento fatigada, no sé si es porque está cerca la regla pero estoy a 148 pulsaciones. En los step-ups estoy sin equilibrio.",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Sentadilla bulgara",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 9
+            },
+            {
+              "weightKg": 12,
+              "reps": 9
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Step-up",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Puente de gluteo con pausa",
+          "sets": [
+            {
+              "weightKg": 50.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 50.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 50.7,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Laterales",
+          "sets": [
+            {
+              "weightKg": 20,
+              "reps": 10
+            },
+            {
+              "weightKg": 20,
+              "reps": 10
+            },
+            {
+              "weightKg": 20,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Fondos",
+          "sets": [
+            {
+              "weightKg": 0,
+              "reps": 9
+            },
+            {
+              "weightKg": 0,
+              "reps": 6
+            },
+            {
+              "weightKg": 0,
+              "reps": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1dfb6821-0883-4da5-ad64-24706fd56115",
+      "date": "2026-04-15",
+      "templateId": "lower",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Sentadilla bulgara",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Step-up",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 9
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Puente de gluteo con pausa",
+          "sets": [
+            {
+              "weightKg": 48.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 48.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 48.7,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones de talon",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 12
+            },
+            {
+              "weightKg": 12,
+              "reps": 12
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Laterales",
+          "sets": [
+            {
+              "weightKg": 20,
+              "reps": 10
+            },
+            {
+              "weightKg": 20,
+              "reps": 8
+            },
+            {
+              "weightKg": 20,
+              "reps": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ad9ee164-6d8d-4d5e-9d50-5b53fe5800d0",
+      "date": "2026-04-13",
+      "templateId": "full-body-a",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": []
+    },
+    {
+      "id": "3c876c8d-9596-43c8-92f4-9aa20e3d764c",
+      "date": "2026-04-13",
+      "templateId": "full-body-a",
+      "effort": 5,
+      "notes": "PR de hip thrust!",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Hip thrust",
+          "sets": [
+            {
+              "weightKg": 60,
+              "reps": 8
+            },
+            {
+              "weightKg": 60,
+              "reps": 8
+            },
+            {
+              "weightKg": 60,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Sentadilla goblet",
+          "sets": [
+            {
+              "weightKg": 23,
+              "reps": 8
+            },
+            {
+              "weightKg": 23,
+              "reps": 8
+            },
+            {
+              "weightKg": 23,
+              "reps": 0
+            }
+          ]
+        },
+        {
+          "exerciseName": "Remo con mancuernas",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Peso muerto rumano (barra)",
+          "sets": [
+            {
+              "weightKg": 60,
+              "reps": 5
+            },
+            {
+              "weightKg": 60,
+              "reps": 3
+            },
+            {
+              "weightKg": 50,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones laterales",
+          "sets": [
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 10
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "38588c6a-40a9-4fa1-900d-2d5d98aafc1b",
+      "date": "2026-04-10",
+      "templateId": "upper",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Remo con barra",
+          "sets": [
+            {
+              "weightKg": 38.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 38.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 38.7,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press hombro mancuernas",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 10
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press pecho mancuernas",
+          "sets": [
+            {
+              "weightKg": 32,
+              "reps": 8
+            },
+            {
+              "weightKg": 30,
+              "reps": 6
+            },
+            {
+              "weightKg": 30,
+              "reps": 4
+            }
+          ]
+        },
+        {
+          "exerciseName": "Curl biceps",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Extension triceps mancuerna",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            },
+            {
+              "weightKg": 12,
+              "reps": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c2892fa4-d3d6-47f2-9584-f5c439a0636e",
+      "date": "2026-04-08",
+      "templateId": "lower",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Sentadilla bulgara",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Step-up",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Puente de gluteo con pausa",
+          "sets": [
+            {
+              "weightKg": 38.7,
+              "reps": 12
+            },
+            {
+              "weightKg": 48.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 48.7,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones de talon",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 12
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "6464afb6-0bd3-452b-b051-62b5ff108f9c",
+      "date": "2026-04-06",
+      "templateId": "full-body-a",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Hip thrust",
+          "sets": [
+            {
+              "weightKg": 52,
+              "reps": 10
+            },
+            {
+              "weightKg": 52,
+              "reps": 8
+            },
+            {
+              "weightKg": 52,
+              "reps": 6
+            }
+          ]
+        },
+        {
+          "exerciseName": "Sentadilla goblet",
+          "sets": [
+            {
+              "weightKg": 23,
+              "reps": 8
+            },
+            {
+              "weightKg": 23,
+              "reps": 7
+            },
+            {
+              "weightKg": 23,
+              "reps": 0
+            }
+          ]
+        },
+        {
+          "exerciseName": "Remo con mancuernas",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Peso muerto rumano (barra)",
+          "sets": [
+            {
+              "weightKg": 50.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 50.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 50.7,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones laterales",
+          "sets": [
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "648d62b3-57f3-49b2-9961-d526d31c3d38",
+      "date": "2026-04-03",
+      "templateId": "upper",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Remo con barra",
+          "sets": [
+            {
+              "weightKg": 38.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 38.7,
+              "reps": 8
+            },
+            {
+              "weightKg": 38.7,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press hombro mancuernas",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press pecho mancuernas",
+          "sets": [
+            {
+              "weightKg": 30,
+              "reps": 8
+            },
+            {
+              "weightKg": 30,
+              "reps": 7
+            },
+            {
+              "weightKg": 30,
+              "reps": 4
+            }
+          ]
+        },
+        {
+          "exerciseName": "Curl biceps",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Extension triceps mancuerna",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 5
+            },
+            {
+              "weightKg": 10,
+              "reps": 5
+            },
+            {
+              "weightKg": 10,
+              "reps": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2603bf15-4161-4a3f-832e-4f7d3ef84609",
+      "date": "2026-04-01",
+      "templateId": "lower",
+      "effort": 5,
+      "notes": "Genial, he subido un poco los pesos",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Sentadilla bulgara",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Step-up",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            },
+            {
+              "weightKg": 12,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Puente de gluteo con pausa",
+          "sets": [
+            {
+              "weightKg": 30,
+              "reps": 12
+            },
+            {
+              "weightKg": 30,
+              "reps": 12
+            },
+            {
+              "weightKg": 30,
+              "reps": 12
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones de talon",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "468d89b5-f077-44fe-bcad-36a05221c328",
+      "date": "2026-03-30",
+      "templateId": "full-body-a",
+      "effort": 5,
+      "notes": "Después de una semana sin hacer nada por bronquitis ha sido durisimo y no lo he disfrutado.",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Hip thrust",
+          "sets": [
+            {
+              "weightKg": 28.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 28.7,
+              "reps": 10
+            },
+            {
+              "weightKg": 28.7,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Sentadilla goblet",
+          "sets": [
+            {
+              "weightKg": 22,
+              "reps": 8
+            },
+            {
+              "weightKg": 22,
+              "reps": 8
+            },
+            {
+              "weightKg": 22,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Remo con mancuernas",
+          "sets": [
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            },
+            {
+              "weightKg": 12,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Peso muerto rumano (barra)",
+          "sets": [
+            {
+              "weightKg": 50,
+              "reps": 4
+            },
+            {
+              "weightKg": 50,
+              "reps": 6
+            },
+            {
+              "weightKg": 50,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones laterales",
+          "sets": [
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e8555ad9-ac8b-411c-a3de-c583d66d6096",
+      "date": "2026-03-20",
+      "templateId": "upper",
+      "effort": 5,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Remo con barra",
+          "sets": [
+            {
+              "weightKg": 32.7,
+              "reps": 6
+            },
+            {
+              "weightKg": 32.7,
+              "reps": 6
+            },
+            {
+              "weightKg": 32.7,
+              "reps": 6
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press hombro mancuernas",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Press pecho mancuernas",
+          "sets": [
+            {
+              "weightKg": 28.7,
+              "reps": 5
+            },
+            {
+              "weightKg": 28.7,
+              "reps": 5
+            },
+            {
+              "weightKg": 28.7,
+              "reps": 5
+            }
+          ]
+        },
+        {
+          "exerciseName": "Curl biceps",
+          "sets": [
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            },
+            {
+              "weightKg": 8,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Extension triceps mancuerna",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5153da88-31a2-44d2-823c-218813e48a79",
+      "date": "2026-03-18",
+      "templateId": "lower",
+      "effort": 5,
+      "notes": "Durísimo.",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Sentadilla bulgara",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Step-up",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 8
+            },
+            {
+              "weightKg": 10,
+              "reps": 8
+            },
+            {
+              "weightKg": 10,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Puente de gluteo con pausa",
+          "sets": [
+            {
+              "weightKg": 25,
+              "reps": 12
+            },
+            {
+              "weightKg": 25,
+              "reps": 12
+            },
+            {
+              "weightKg": 25,
+              "reps": 10
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones de talon",
+          "sets": [
+            {
+              "weightKg": 25,
+              "reps": 12
+            },
+            {
+              "weightKg": 25,
+              "reps": 12
+            },
+            {
+              "weightKg": 25,
+              "reps": 12
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "eeb00de9-e670-428e-b2d7-2eeae8616cc8",
+      "date": "2026-03-16",
+      "templateId": "full-body-a",
+      "effort": 3,
+      "notes": "",
+      "exerciseLoads": [
+        {
+          "exerciseName": "Hip thrust",
+          "sets": [
+            {
+              "weightKg": 50,
+              "reps": 8
+            },
+            {
+              "weightKg": 50,
+              "reps": 8
+            },
+            {
+              "weightKg": 50,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Sentadilla goblet",
+          "sets": [
+            {
+              "weightKg": 18,
+              "reps": 12
+            },
+            {
+              "weightKg": 18,
+              "reps": 12
+            },
+            {
+              "weightKg": 18,
+              "reps": 12
+            }
+          ]
+        },
+        {
+          "exerciseName": "Remo con mancuernas",
+          "sets": [
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 10
+            },
+            {
+              "weightKg": 10,
+              "reps": 8
+            }
+          ]
+        },
+        {
+          "exerciseName": "Peso muerto rumano (barra)",
+          "sets": [
+            {
+              "weightKg": 50,
+              "reps": 5
+            },
+            {
+              "weightKg": 50,
+              "reps": 5
+            },
+            {
+              "weightKg": 50,
+              "reps": 6
+            }
+          ]
+        },
+        {
+          "exerciseName": "Elevaciones laterales",
+          "sets": [
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            },
+            {
+              "weightKg": 5,
+              "reps": 8
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "period-settings-v1": {
+    "lastPeriodStart": "2026-04-22",
+    "cycleLength": 28,
+    "periodLength": 5,
+    "isPeriodOngoing": true
+  },
+  "period-log-v1": [],
+  "user-profile-v1": {
+    "age": 28,
+    "heightCm": 160,
+    "weightKg": 56,
+    "activity": "moderate",
+    "trainingBlockStart": "2026-03-16",
+    "targetWeightKg": null,
+    "weightGoalWeeks": null
+  },
+  "body-measurements-v1": [],
+  "steps-log-v1": [],
+  "training-plans-v1": [
+    {
+      "id": "plan-a-default",
+      "name": "Plan A",
+      "contentType": "text",
+      "content": "FULL BODY A (glúteo + torso) // la barra pesa 8,7 kg\n\nMovilidad (5 min)\n  • 90-90 cadera → 12/12\n  • Rotaciones torácicas → 12/12\n  • Glute bridge → 15\n\n🅰️ Superserie A (x3)\n  • Hip thrust (50 kg) 12-15 reps | Peso: 20-30 kg | Pausa 2 s arriba\n  • Flexiones 8-12 reps | RIR 1-2\n  👉 sin descanso entre ejercicios · 90 s descanso tras la superserie\n\n🅱️ Superserie B (x3)\n  • Sentadilla goblet 18 kg | 10-12 reps | Peso: 12-18 kg | RIR 2\n  • Remo con mancuernas 10 kg | 10-12 reps | Peso: 8-10 kg por lado\n  Descanso: 90-120 s\n\nFinisher glúteo + hombro\n  • Peso muerto rumano (barra) 50 kg | 8-10 reps | Peso: 23 kg (baja lento, 3 s bajada)\n  • Elevaciones laterales 5 kg | 12-15 reps | Peso: 4-6 kg\n  2-3 rondas · 60 s descanso"
+    }
+  ],
+  "custom-exercises-by-template-v1": {},
+  "progression-horizon-weeks-v1": 6,
+  "app-local-data-ts-v1": 1776972629042
+}

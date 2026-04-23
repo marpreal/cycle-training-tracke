@@ -155,6 +155,8 @@ export default function Home() {
   const syncedDataSerializedRef = useRef<string | null>(null);
   const remotePullGenRef = useRef(0);
   const remotePullDoneForUserRef = useRef<string | null>(null);
+  /** Only true when pull returned without a server/network error — gates push to prevent overwriting remote with empty local state. */
+  const remotePullOkForUserRef = useRef<string | null>(null);
 
   // ── Extracted hooks ───────────────────────────────────────────────────────
   const form = useTrainingForm();
@@ -297,6 +299,7 @@ export default function Home() {
     if (sessionStatus === "loading" && !sessionLoadingTimedOut) return;
     if (sessionStatus === "unauthenticated" || !sessionUserId) {
       remotePullDoneForUserRef.current = null;
+      remotePullOkForUserRef.current = null;
       setRemoteSyncOk(true);
       setRemoteSyncMessage("");
       setSyncPullInFlight(false);
@@ -315,10 +318,13 @@ export default function Home() {
         setRemoteSyncMessage(
           needsAuth ? "Sesión no válida: vuelve a entrar con Google." : error,
         );
+        // Don't set remotePullOkForUserRef — push is blocked until a clean pull succeeds,
+        // preventing an empty local state from overwriting remote data on pull failure.
         setRemoteSyncOk(true);
         remotePullDoneForUserRef.current = sessionUserId;
         return;
       }
+      remotePullOkForUserRef.current = sessionUserId;
       setSyncPullInFlight(false);
       setRemoteSyncOk(true);
       setRemoteSyncMessage("");
@@ -390,6 +396,7 @@ export default function Home() {
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
     if (sessionStatus !== "authenticated" || !sessionUserId) return;
+    if (remotePullOkForUserRef.current !== sessionUserId) return;
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;

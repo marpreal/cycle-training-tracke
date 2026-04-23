@@ -63,6 +63,29 @@ export function downloadTextFile(filename: string, content: string, mime = "text
   URL.revokeObjectURL(url);
 }
 
+export function buildLocalStorageBackupJson(): string {
+  const keys = [
+    "period-settings-v1",
+    "training-log-v1",
+    "period-log-v1",
+    "user-profile-v1",
+    "body-measurements-v1",
+    "steps-log-v1",
+    "training-plans-v1",
+    "custom-exercises-by-template-v1",
+    "progression-horizon-weeks-v1",
+    "app-local-data-ts-v1",
+  ];
+  const out: Record<string, unknown> = { exportedAt: new Date().toISOString() };
+  for (const k of keys) {
+    const raw = localStorage.getItem(k);
+    if (raw != null) {
+      try { out[k] = JSON.parse(raw); } catch { out[k] = raw; }
+    }
+  }
+  return JSON.stringify(out, null, 2);
+}
+
 /** Abre ventana imprimible para guardar como PDF desde el navegador. */
 export function openPrintWindow(title: string, bodyHtml: string): void {
   const w = window.open("", "_blank");
