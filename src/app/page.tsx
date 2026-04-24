@@ -124,12 +124,14 @@ export default function Home() {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [activeView, setActiveViewRaw] = useState<ActiveView>("regla");
+  const [entrenoBlade, setEntrenoBlade] = useState<"form" | "history" | "more">("form");
   const [exportMonth, setExportMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
   const [authGoogleConfigured, setAuthGoogleConfigured] = useState<boolean | null>(null);
   const [sessionLoadingTimedOut, setSessionLoadingTimedOut] = useState(false);
+  const formCardRef = useRef<HTMLDivElement>(null);
 
   // ── Period/flow form state ────────────────────────────────────────────────
   const [periodStartInput, setPeriodStartInput] = useState(DEFAULT_ISO_DATE);
@@ -168,6 +170,16 @@ export default function Home() {
     setActiveViewRaw(v);
     localStorage.setItem("active-view-v1", v);
   };
+
+  // ── Scroll to form + switch blade when editing starts ────────────────────
+  useEffect(() => {
+    if (!form.editingLogId) return;
+    setEntrenoBlade("form");
+    const t = setTimeout(() => {
+      formCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [form.editingLogId]);
 
   // ── Initialisation ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1413,47 +1425,77 @@ export default function Home() {
 
       {/* ── ENTRENO view ─────────────────────────────────────────────────────── */}
 
-      {/* Combined stats: sessions + volume in one bar */}
-      <section className={activeView === "entreno" ? "" : "hidden"}>
+      {/* Mobile sub-nav (hidden on desktop) */}
+      {activeView === "entreno" ? (
+        <nav className="lg:hidden flex rounded-lg overflow-hidden border border-[var(--border)] text-sm font-medium">
+          {(["form", "history", "more"] as const).map((blade, i) => (
+            <button
+              key={blade}
+              type="button"
+              onClick={() => setEntrenoBlade(blade)}
+              className={[
+                "flex-1 py-2.5 transition-colors",
+                i > 0 ? "border-l border-[var(--border)]" : "",
+                entrenoBlade === blade
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]",
+              ].join(" ")}
+            >
+              {blade === "form" ? (form.editingLogId ? "✏️ Editar" : "Registrar") : blade === "history" ? "Historial" : "Más"}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
+      {/* Stats bar — always visible on desktop, only on form/history blade on mobile */}
+      <section className={[
+        activeView !== "entreno" ? "hidden" : "",
+        entrenoBlade === "more" ? "hidden lg:block" : "",
+      ].join(" ")}>
         <TrainingMetricsBar hasHydrated={hasHydrated} stats={trainingStats} personalRecords={personalRecords} />
       </section>
 
       {/* Training form + history */}
-      <section
-        className={`grid gap-6 lg:grid-cols-2 lg:items-start ${activeView === "entreno" ? "" : "hidden"}`}
-      >
-        <TrainingFormCard
-          form={form}
-          loadExercisesForForm={loadExercisesForForm}
-          latestLoadsForTemplate={latestLoadsForTemplate}
-          customExercisesForTemplate={customExercisesByTemplate[form.newLogTemplate] ?? []}
-          onSave={form.editingLogId ? saveEditLog : addTrainingLog}
-          onCancel={form.resetForm}
-          onAddCustomExercise={addCustomExerciseToTemplate}
-          onRemoveCustomExercise={removeCustomExercise}
-        />
-        <TrainingHistoryPanel
-          paginatedTrainingLogs={sessionHistory.paginatedTrainingLogs}
-          filteredCount={sessionHistory.filteredTrainingLogs.length}
-          trainingLogEmpty={trainingLog.length === 0}
-          logProgressionById={logProgressionById}
-          editingLogId={form.editingLogId}
-          onEditLog={(log) => form.populateFormFromRecord(log)}
-          onDeleteLog={removeTrainingLog}
-          templates={trainingTemplates}
-          sessionFilterMonth={sessionHistory.sessionFilterMonth}
-          onFilterMonthChange={sessionHistory.setSessionFilterMonth}
-          sessionFilterAll={sessionHistory.sessionFilterAll}
-          onFilterAllChange={sessionHistory.setSessionFilterAll}
-          availableMonths={sessionHistory.availableMonths}
-          sessionPageClamped={sessionHistory.sessionPageClamped}
-          sessionTotalPages={sessionHistory.sessionTotalPages}
-          onPageChange={sessionHistory.setSessionPage}
-        />
+      <section className={`grid gap-6 lg:grid-cols-2 lg:items-start ${activeView === "entreno" ? "" : "hidden"}`}>
+        <div ref={formCardRef} className={entrenoBlade !== "form" ? "hidden lg:block" : ""}>
+          <TrainingFormCard
+            form={form}
+            loadExercisesForForm={loadExercisesForForm}
+            latestLoadsForTemplate={latestLoadsForTemplate}
+            customExercisesForTemplate={customExercisesByTemplate[form.newLogTemplate] ?? []}
+            onSave={form.editingLogId ? saveEditLog : addTrainingLog}
+            onCancel={form.resetForm}
+            onAddCustomExercise={addCustomExerciseToTemplate}
+            onRemoveCustomExercise={removeCustomExercise}
+          />
+        </div>
+        <div className={entrenoBlade !== "history" ? "hidden lg:block" : ""}>
+          <TrainingHistoryPanel
+            paginatedTrainingLogs={sessionHistory.paginatedTrainingLogs}
+            filteredCount={sessionHistory.filteredTrainingLogs.length}
+            trainingLogEmpty={trainingLog.length === 0}
+            logProgressionById={logProgressionById}
+            editingLogId={form.editingLogId}
+            onEditLog={(log) => form.populateFormFromRecord(log)}
+            onDeleteLog={removeTrainingLog}
+            templates={trainingTemplates}
+            sessionFilterMonth={sessionHistory.sessionFilterMonth}
+            onFilterMonthChange={sessionHistory.setSessionFilterMonth}
+            sessionFilterAll={sessionHistory.sessionFilterAll}
+            onFilterAllChange={sessionHistory.setSessionFilterAll}
+            availableMonths={sessionHistory.availableMonths}
+            sessionPageClamped={sessionHistory.sessionPageClamped}
+            sessionTotalPages={sessionHistory.sessionTotalPages}
+            onPageChange={sessionHistory.setSessionPage}
+          />
+        </div>
       </section>
 
-      {/* Steps — below exercises */}
-      <section className={`grid gap-6 ${activeView === "entreno" ? "" : "hidden"}`}>
+      {/* Steps, progression, export — only in "more" blade on mobile */}
+      <section className={[
+        activeView !== "entreno" ? "hidden" : "",
+        entrenoBlade !== "more" ? "hidden lg:block" : "",
+      ].join(" ")}>
         <StepsCard
           steps={steps}
           stepsStats={stepsStats}
@@ -1465,8 +1507,10 @@ export default function Home() {
         />
       </section>
 
-      {/* Progression + next session — full width below the 2-col grid */}
-      <section className={activeView === "entreno" ? "" : "hidden"}>
+      <section className={[
+        activeView !== "entreno" ? "hidden" : "",
+        entrenoBlade !== "more" ? "hidden lg:block" : "",
+      ].join(" ")}>
         <NextSessionPanel
           nextSessionTargets={nextSessionTargets}
           dynamicProgressionRows={dynamicProgressionRows}
@@ -1478,7 +1522,10 @@ export default function Home() {
       </section>
 
       {/* Export + templates */}
-      <section className={activeView === "entreno" ? "" : "hidden"}>
+      <section className={[
+        activeView !== "entreno" ? "hidden" : "",
+        entrenoBlade !== "more" ? "hidden lg:block" : "",
+      ].join(" ")}>
         <ExportCard
           trainingLog={trainingLog}
           exportMonth={exportMonth}

@@ -1,4 +1,13 @@
 import type { AppSnapshotV1 } from "@/lib/appSnapshot";
+import type { TrainingPlan } from "@/lib/appTypes";
+
+function stripPlanImages(plans: TrainingPlan[]): TrainingPlan[] {
+  return plans.map((p) => {
+    if (p.contentType !== "html") return p;
+    const stripped = p.content.replace(/<img[^>]+src="data:[^"]*"[^>]*>/gi, "");
+    return { ...p, content: stripped };
+  });
+}
 
 export async function fetchRemoteSnapshot(): Promise<{
   snapshot: AppSnapshotV1 | null;
@@ -33,13 +42,16 @@ export async function fetchRemoteSnapshot(): Promise<{
 export async function pushRemoteSnapshot(
   snapshot: AppSnapshotV1,
 ): Promise<{ ok: boolean; error?: string; updatedAt?: number }> {
+  const syncSnapshot: AppSnapshotV1 = snapshot.trainingPlans
+    ? { ...snapshot, trainingPlans: stripPlanImages(snapshot.trainingPlans) }
+    : snapshot;
   const res = await fetch("/api/app-state", {
     method: "PUT",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(snapshot),
+    body: JSON.stringify(syncSnapshot),
   });
   if (res.status === 401) {
     return { ok: false, error: "Sesion caducada; vuelve a entrar con Google" };
