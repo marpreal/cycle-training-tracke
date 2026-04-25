@@ -1448,10 +1448,7 @@ export default function Home() {
       ) : null}
 
       {/* Stats bar — always visible on desktop, only on form/history blade on mobile */}
-      <section className={[
-        activeView !== "entreno" ? "hidden" : "",
-        entrenoBlade === "more" ? "hidden lg:block" : "",
-      ].join(" ")}>
+      <section className={activeView !== "entreno" ? "hidden" : entrenoBlade === "more" ? "hidden lg:block" : ""}>
         <TrainingMetricsBar hasHydrated={hasHydrated} stats={trainingStats} personalRecords={personalRecords} />
       </section>
 
@@ -1492,10 +1489,7 @@ export default function Home() {
       </section>
 
       {/* Steps, progression, export — only in "more" blade on mobile */}
-      <section className={[
-        activeView !== "entreno" ? "hidden" : "",
-        entrenoBlade !== "more" ? "hidden lg:block" : "",
-      ].join(" ")}>
+      <section className={activeView !== "entreno" ? "hidden" : entrenoBlade !== "more" ? "hidden lg:block" : ""}>
         <StepsCard
           steps={steps}
           stepsStats={stepsStats}
@@ -1507,10 +1501,7 @@ export default function Home() {
         />
       </section>
 
-      <section className={[
-        activeView !== "entreno" ? "hidden" : "",
-        entrenoBlade !== "more" ? "hidden lg:block" : "",
-      ].join(" ")}>
+      <section className={activeView !== "entreno" ? "hidden" : entrenoBlade !== "more" ? "hidden lg:block" : ""}>
         <NextSessionPanel
           nextSessionTargets={nextSessionTargets}
           dynamicProgressionRows={dynamicProgressionRows}
@@ -1522,10 +1513,7 @@ export default function Home() {
       </section>
 
       {/* Export + templates */}
-      <section className={[
-        activeView !== "entreno" ? "hidden" : "",
-        entrenoBlade !== "more" ? "hidden lg:block" : "",
-      ].join(" ")}>
+      <section className={activeView !== "entreno" ? "hidden" : entrenoBlade !== "more" ? "hidden lg:block" : ""}>
         <ExportCard
           trainingLog={trainingLog}
           exportMonth={exportMonth}
