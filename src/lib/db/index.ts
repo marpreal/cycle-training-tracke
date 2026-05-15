@@ -33,7 +33,7 @@ export function getDb() {
   return _db;
 }
 
-/** Creates the app_snapshot table if it doesn't exist yet. Safe to call multiple times. */
+/** Creates all tables if they don't exist. Safe to call multiple times. */
 export async function ensureSchema(): Promise<void> {
   if (_schemaReady) return;
   const client = ensureClient();
@@ -41,6 +41,13 @@ export async function ensureSchema(): Promise<void> {
     CREATE TABLE IF NOT EXISTS app_snapshot (
       user_id TEXT PRIMARY KEY,
       payload_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS user_plans (
+      user_id TEXT PRIMARY KEY,
+      plans_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     )
   `);

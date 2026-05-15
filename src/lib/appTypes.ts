@@ -93,6 +93,8 @@ export const TRAINING_PLANS_KEY = "training-plans-v1";
 export const EXERCISE_ORDER_KEY = "exercise-order-by-template-v1";
 /** Ejercicios del plan ocultos por id de plantilla (JSON). */
 export const EXCLUDED_PLAN_EXERCISES_KEY = "excluded-plan-exercises-by-template-v1";
+/** Timestamp de la última sincronización remota de planes (número). */
+export const PLANS_REMOTE_UPDATED_AT_KEY = "plans-remote-updated-at-v1";
 
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */
 export const DEFAULT_ISO_DATE = "2000-01-01";

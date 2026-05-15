@@ -50,6 +50,7 @@ import {
   CUSTOM_EXERCISES_KEY,
   EXCLUDED_PLAN_EXERCISES_KEY,
   EXERCISE_ORDER_KEY,
+  PLANS_REMOTE_UPDATED_AT_KEY,
   STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
@@ -81,7 +82,7 @@ import {
   setLocalDataTimestamp,
 } from "@/lib/localDataTimestamp";
 import { buildSnapshot } from "@/lib/appSnapshot";
-import { fetchRemoteSnapshot, pushRemoteSnapshot } from "@/lib/remoteAppState";
+import { fetchRemotePlans, fetchRemoteSnapshot, pushRemotePlans, pushRemoteSnapshot } from "@/lib/remoteAppState";
 // Hooks
 import { useTrainingForm } from "@/hooks/useTrainingForm";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
@@ -159,6 +160,8 @@ export default function Home() {
   const [remoteSyncMessage, setRemoteSyncMessage] = useState("");
   const [syncPullInFlight, setSyncPullInFlight] = useState(false);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const plansPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const plansPullDoneForUserRef = useRef<string | null>(null);
   const remoteApplyRef = useRef(false);
   const syncedDataSerializedRef = useRef<string | null>(null);
   const remotePullGenRef = useRef(0);
@@ -225,10 +228,14 @@ export default function Home() {
         let plans: TrainingPlan[];
         if (migrated.length > 0) {
           plans = migrated;
+          await savePlansToIDB(plans);
         } else {
           plans = await loadPlansFromIDB();
         }
-        if (plans.length === 0) {
+        // Only seed the default plan if this is truly the very first time (no IDB data at all
+        // and no migration). Do NOT re-create it when the user explicitly deleted all plans.
+        const hasEverHadPlans = Boolean(localStorage.getItem("plans-ever-initialized-v1"));
+        if (plans.length === 0 && !hasEverHadPlans) {
           plans = [{
             id: "plan-a-default",
             name: "Plan A",
@@ -237,6 +244,7 @@ export default function Home() {
           }];
           await savePlansToIDB(plans);
         }
+        localStorage.setItem("plans-ever-initialized-v1", "1");
         setTrainingPlans(plans);
         setHasHydrated(true);
       })();
@@ -383,10 +391,8 @@ export default function Home() {
       if (snapshot.preferences?.customExercisesByTemplate) {
         setCustomExercisesByTemplate(snapshot.preferences.customExercisesByTemplate);
       }
-      if (snapshot.trainingPlans && snapshot.trainingPlans.length > 0) {
-        setTrainingPlans(snapshot.trainingPlans);
-        void savePlansToIDB(snapshot.trainingPlans);
-      }
+      // Plans are synced via /api/plans — not from the main snapshot anymore.
+      // (Legacy: snapshot.trainingPlans is ignored; dedicated pull handles plans.)
       setLocalDataTimestamp(snapshot.updatedAt);
       remotePullDoneForUserRef.current = sessionUserId;
     })();
@@ -396,16 +402,11 @@ export default function Home() {
   }, [hasHydrated, sessionUserId, sessionStatus, sessionLoadingTimedOut]);
 
   // ── Remote sync: dirty-tracking + push ───────────────────────────────────
-  const plansFP = useMemo(
-    () => trainingPlans.map((p) => `${p.id}:${p.name}:${p.content.length}`).join(","),
-    [trainingPlans],
-  );
   useEffect(() => {
     if (!hasHydrated) return;
     const pack = {
       settings, trainingLog, periodLog, profile,
       measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate,
-      plansFP,
     };
     const next = JSON.stringify(pack);
     if (remoteApplyRef.current) {
@@ -421,7 +422,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, plansFP]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -432,7 +433,6 @@ export default function Home() {
       pushTimerRef.current = null;
       const snap = buildSnapshot({
         settings, trainingLog, periodLog, profile, measurementLog, stepsLog,
-        trainingPlans,
         preferences: { progressionHorizonWeeks, customExercisesByTemplate },
       });
       void (async () => {
@@ -446,7 +446,46 @@ export default function Home() {
       })();
     }, 1200);
     return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
-  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, trainingPlans]);
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
+
+  // ── Remote sync: plans pull (dedicated endpoint) ──────────────────────────
+  useEffect(() => {
+    if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
+    if (sessionStatus !== "authenticated" || !sessionUserId) return;
+    if (plansPullDoneForUserRef.current === sessionUserId) return;
+    plansPullDoneForUserRef.current = sessionUserId;
+    void (async () => {
+      const { plans, updatedAt, error } = await fetchRemotePlans();
+      if (error || plans === null || updatedAt === null) return;
+      const localPlansTs = Number(localStorage.getItem(PLANS_REMOTE_UPDATED_AT_KEY) ?? "0");
+      if (updatedAt <= localPlansTs) return; // local is newer
+      // Apply remote plans if they're newer
+      setTrainingPlans(plans);
+      await savePlansToIDB(plans);
+      localStorage.setItem(PLANS_REMOTE_UPDATED_AT_KEY, String(updatedAt));
+    })();
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus]);
+
+  // ── Remote sync: plans push (dedicated endpoint) ──────────────────────────
+  useEffect(() => {
+    if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
+    if (sessionStatus !== "authenticated" || !sessionUserId) return;
+    if (remotePullOkForUserRef.current !== sessionUserId) return;
+    if (plansPullDoneForUserRef.current !== sessionUserId) return;
+    if (plansPushTimerRef.current) clearTimeout(plansPushTimerRef.current);
+    plansPushTimerRef.current = setTimeout(() => {
+      plansPushTimerRef.current = null;
+      void (async () => {
+        const { ok, error, updatedAt } = await pushRemotePlans(trainingPlans);
+        if (ok && typeof updatedAt === "number") {
+          localStorage.setItem(PLANS_REMOTE_UPDATED_AT_KEY, String(updatedAt));
+        } else if (!ok) {
+          queueMicrotask(() => setRemoteSyncMessage(error ?? "Error al guardar planes en el servidor"));
+        }
+      })();
+    }, 1500);
+    return () => { if (plansPushTimerRef.current) clearTimeout(plansPushTimerRef.current); };
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, trainingPlans]);
 
   // ── Computed values ───────────────────────────────────────────────────────
   const latestClosedCurrentCycleLength = useMemo(() => {

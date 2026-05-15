@@ -1,6 +1,36 @@
 import type { AppSnapshotV1 } from "@/lib/appSnapshot";
 import type { TrainingPlan } from "@/lib/appTypes";
 
+export async function fetchRemotePlans(): Promise<{
+  plans: TrainingPlan[] | null;
+  updatedAt: number | null;
+  error?: string;
+  needsAuth?: boolean;
+}> {
+  const res = await fetch("/api/plans", { credentials: "include" });
+  if (res.status === 401) return { plans: null, updatedAt: null, needsAuth: true, error: "Sesion caducada" };
+  if (res.status === 503) return { plans: null, updatedAt: null, error: "Servidor sin base de datos" };
+  if (!res.ok) return { plans: null, updatedAt: null, error: "Error al leer planes del servidor" };
+  const data = (await res.json()) as { plans: TrainingPlan[] | null; updatedAt: number | null };
+  return { plans: data.plans, updatedAt: data.updatedAt };
+}
+
+export async function pushRemotePlans(
+  plans: TrainingPlan[],
+): Promise<{ ok: boolean; error?: string; updatedAt?: number }> {
+  const res = await fetch("/api/plans", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plans }),
+  });
+  if (res.status === 401) return { ok: false, error: "Sesion caducada; vuelve a entrar con Google" };
+  if (res.status === 503) return { ok: false, error: "Servidor sin base de datos" };
+  if (!res.ok) return { ok: false, error: "Error al guardar planes en el servidor" };
+  const data = (await res.json().catch(() => ({}))) as { updatedAt?: number };
+  return { ok: true, updatedAt: data.updatedAt };
+}
+
 function stripPlanImages(plans: TrainingPlan[]): TrainingPlan[] {
   return plans.map((p) => {
     if (p.contentType !== "html") return p;
