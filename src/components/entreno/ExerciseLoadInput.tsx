@@ -6,11 +6,11 @@ interface ExerciseLoadInputProps {
   exerciseName: string;
   sets: { w: string; r: string }[];
   isDetail: boolean;
-  isCustom: boolean;
   isDragging: boolean;
   dragIndicator: "top" | "bottom" | null;
-  lastKnownKg: number | undefined;
-  onRemoveCustom: () => void;
+  lastSessionKg: number | undefined;
+  maxKg: number | undefined;
+  onRemove: () => void;
   onToggleDetail: (wantDetail: boolean) => void;
   onUpdateSet: (setIndex: number, field: "w" | "r", value: string) => void;
   onUpdateUniform: (field: "w" | "r", value: string) => void;
@@ -22,11 +22,11 @@ export function ExerciseLoadInput({
   exerciseName,
   sets,
   isDetail,
-  isCustom,
   isDragging,
   dragIndicator,
-  lastKnownKg,
-  onRemoveCustom,
+  lastSessionKg,
+  maxKg,
+  onRemove,
   onToggleDetail,
   onUpdateSet,
   onUpdateUniform,
@@ -48,15 +48,13 @@ export function ExerciseLoadInput({
           <span className="load-exercise-name">{exerciseName}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isCustom ? (
-            <button
-              type="button"
-              className="text-xs text-amber-700 underline dark:text-amber-400"
-              onClick={onRemoveCustom}
-            >
-              Quitar ejercicio
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="text-xs text-amber-700 underline dark:text-amber-400"
+            onClick={onRemove}
+          >
+            Quitar
+          </button>
           <label className="load-detail-toggle">
             <input
               type="checkbox"
@@ -68,8 +66,12 @@ export function ExerciseLoadInput({
         </div>
       </div>
 
-      {lastKnownKg != null && lastKnownKg > 0 ? (
-        <p className="load-last-hint">Última sesión: {lastKnownKg} kg</p>
+      {(lastSessionKg != null && lastSessionKg > 0) || (maxKg != null && maxKg > 0) ? (
+        <p className="load-last-hint">
+          {maxKg != null && maxKg > 0 ? <span>Máx: <strong>{maxKg} kg</strong></span> : null}
+          {maxKg != null && maxKg > 0 && lastSessionKg != null && lastSessionKg > 0 ? <span className="mx-1">·</span> : null}
+          {lastSessionKg != null && lastSessionKg > 0 ? <span>Última sesión: {lastSessionKg} kg</span> : null}
+        </p>
       ) : null}
 
       {isDetail ? (

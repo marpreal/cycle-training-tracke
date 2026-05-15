@@ -2,6 +2,8 @@ import { ACTIVITY_FACTORS } from "@/lib/nutrition";
 import { migrateExerciseLoads } from "@/lib/trainingLoads";
 import {
   BODY_MEASUREMENTS_KEY,
+  EXCLUDED_PLAN_EXERCISES_KEY,
+  EXERCISE_ORDER_KEY,
   defaultProfile,
   defaultSettings,
   DEFAULT_ISO_DATE,
@@ -219,6 +221,44 @@ export function loadCustomExercisesByTemplate(): Record<string, string[]> {
     for (const [k, v] of Object.entries(parsed)) {
       if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
         out[k] = v.map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function loadExcludedPlanExercisesByTemplate(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(EXCLUDED_PLAN_EXERCISES_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+        out[k] = v;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function loadExerciseOrderByTemplate(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(EXERCISE_ORDER_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+        out[k] = v;
       }
     }
     return out;

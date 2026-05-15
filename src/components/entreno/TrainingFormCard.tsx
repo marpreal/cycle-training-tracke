@@ -24,12 +24,16 @@ const DAY_SUGGESTIONS: Record<number, string> = {
 interface TrainingFormCardProps {
   form: UseTrainingFormReturn;
   loadExercisesForForm: { name: string }[];
-  latestLoadsForTemplate: Map<string, number>;
+  latestLoadsForTemplate: Map<string, { lastKg: number; maxKg: number }>;
   customExercisesForTemplate: string[];
+  excludedPlanExercisesForTemplate: string[];
   onSave: () => void;
   onCancel: () => void;
   onAddCustomExercise: () => void;
   onRemoveCustomExercise: (name: string) => void;
+  onRemoveExercise: (name: string) => void;
+  onRestorePlanExercise: (name: string) => void;
+  onReorder: (names: string[]) => void;
 }
 
 export function TrainingFormCard({
@@ -41,6 +45,10 @@ export function TrainingFormCard({
   onCancel,
   onAddCustomExercise,
   onRemoveCustomExercise,
+  onRemoveExercise,
+  onRestorePlanExercise,
+  excludedPlanExercisesForTemplate,
+  onReorder,
 }: TrainingFormCardProps) {
   const {
     newLogDate,
@@ -114,10 +122,11 @@ export function TrainingFormCard({
         const next = prev.filter((n) => n !== src);
         const insertAt = half === "top" ? next.indexOf(dst) : next.indexOf(dst) + 1;
         next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
+        onReorder(next);
         return next;
       });
     },
-    [],
+    [onReorder],
   );
 
   // ── Desktop drag events (delegated on stack container) ─────────────────
@@ -277,6 +286,37 @@ export function TrainingFormCard({
               Añadir ejercicio
             </button>
           </div>
+          {(customExercisesForTemplate.length > 0 || excludedPlanExercisesForTemplate.length > 0) ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {customExercisesForTemplate.map((name) => (
+                <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  {name}
+                  <button
+                    type="button"
+                    aria-label={`Eliminar ejercicio ${name}`}
+                    className="ml-0.5 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-100"
+                    onClick={() => onRemoveCustomExercise(name)}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {excludedPlanExercisesForTemplate.map((name) => (
+                <span key={name} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400">
+                  {name}
+                  <button
+                    type="button"
+                    aria-label={`Restaurar ejercicio ${name}`}
+                    className="ml-0.5 no-underline text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                    title="Restaurar ejercicio"
+                    onClick={() => onRestorePlanExercise(name)}
+                  >
+                    +
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div
             className="load-exercise-stack"
             ref={stackRef}
@@ -289,26 +329,29 @@ export function TrainingFormCard({
             onTouchEnd={onStackTouchEnd}
             onTouchCancel={onStackTouchEnd}
           >
-            {orderedExercises.map((exercise) => (
-              <ExerciseLoadInput
-                key={exercise.name}
-                exerciseName={exercise.name}
-                sets={getFormSetsForExercise(exercise.name)}
-                isDetail={isLoadDetail(exercise.name)}
-                isCustom={customExercisesForTemplate.includes(exercise.name)}
-                isDragging={draggingName === exercise.name}
-                dragIndicator={
-                  dragOverName === exercise.name ? dragOverHalf : null
-                }
-                lastKnownKg={latestLoadsForTemplate.get(exercise.name)}
-                onRemoveCustom={() => onRemoveCustomExercise(exercise.name)}
-                onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
-                onUpdateSet={(i, field, value) => updateSetLoad(exercise.name, i, field, value)}
-                onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
-                onAddSet={() => addSetForExercise(exercise.name)}
-                onRemoveSet={() => removeLastSetForExercise(exercise.name)}
-              />
-            ))}
+            {orderedExercises.map((exercise) => {
+              const loads = latestLoadsForTemplate.get(exercise.name);
+              return (
+                <ExerciseLoadInput
+                  key={exercise.name}
+                  exerciseName={exercise.name}
+                  sets={getFormSetsForExercise(exercise.name)}
+                  isDetail={isLoadDetail(exercise.name)}
+                  isDragging={draggingName === exercise.name}
+                  dragIndicator={
+                    dragOverName === exercise.name ? dragOverHalf : null
+                  }
+                  lastSessionKg={loads?.lastKg}
+                  maxKg={loads?.maxKg}
+                  onRemove={() => onRemoveExercise(exercise.name)}
+                  onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
+                  onUpdateSet={(i, field, value) => updateSetLoad(exercise.name, i, field, value)}
+                  onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
+                  onAddSet={() => addSetForExercise(exercise.name)}
+                  onRemoveSet={() => removeLastSetForExercise(exercise.name)}
+                />
+              );
+            })}
           </div>
         </div>
       ) : null}

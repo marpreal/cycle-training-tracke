@@ -89,6 +89,10 @@ export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
 export const CUSTOM_EXERCISES_KEY = "custom-exercises-by-template-v1";
 /** Planes de entrenamiento personalizados (JSON). */
 export const TRAINING_PLANS_KEY = "training-plans-v1";
+/** Orden de ejercicios por id de plantilla (JSON). */
+export const EXERCISE_ORDER_KEY = "exercise-order-by-template-v1";
+/** Ejercicios del plan ocultos por id de plantilla (JSON). */
+export const EXCLUDED_PLAN_EXERCISES_KEY = "excluded-plan-exercises-by-template-v1";
 
 /** Fecha placeholder estable (servidor y cliente igual) hasta hidratar desde localStorage. */
 export const DEFAULT_ISO_DATE = "2000-01-01";

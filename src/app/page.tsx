@@ -48,6 +48,8 @@ import {
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
   CUSTOM_EXERCISES_KEY,
+  EXCLUDED_PLAN_EXERCISES_KEY,
+  EXERCISE_ORDER_KEY,
   STEPS_LOG_KEY,
   todayIsoClient,
   TRAINING_LOG_KEY,
@@ -58,6 +60,8 @@ import {
   loadBodyMeasurements,
   loadPeriodLog,
   loadCustomExercisesByTemplate,
+  loadExcludedPlanExercisesByTemplate,
+  loadExerciseOrderByTemplate,
   loadProgressionHorizonWeeks,
   loadSettings,
   loadStepsLog,
@@ -120,6 +124,8 @@ export default function Home() {
   const [customExercisesByTemplate, setCustomExercisesByTemplate] = useState<
     Record<string, string[]>
   >({});
+  const [exerciseOrderByTemplate, setExerciseOrderByTemplate] = useState<Record<string, string[]>>({});
+  const [excludedPlanExercises, setExcludedPlanExercises] = useState<Record<string, string[]>>({});
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
 
   // ── UI state ──────────────────────────────────────────────────────────────
@@ -197,6 +203,8 @@ export default function Home() {
       initLocalDataTimestampIfMissing();
       setProgressionHorizonWeeks(loadProgressionHorizonWeeks());
       setCustomExercisesByTemplate(loadCustomExercisesByTemplate());
+      setExcludedPlanExercises(loadExcludedPlanExercisesByTemplate());
+      setExerciseOrderByTemplate(loadExerciseOrderByTemplate());
       setSettings(s);
       setPeriodStartInput(s.lastPeriodStart);
       setTrainingLog(loadTrainingLog());
@@ -276,6 +284,16 @@ export default function Home() {
     if (!hasHydrated) return;
     try { localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customExercisesByTemplate)); } catch { /* quota */ }
   }, [customExercisesByTemplate, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try { localStorage.setItem(EXERCISE_ORDER_KEY, JSON.stringify(exerciseOrderByTemplate)); } catch { /* quota */ }
+  }, [exerciseOrderByTemplate, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try { localStorage.setItem(EXCLUDED_PLAN_EXERCISES_KEY, JSON.stringify(excludedPlanExercises)); } catch { /* quota */ }
+  }, [excludedPlanExercises, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -473,11 +491,19 @@ export default function Home() {
 
   const loadExercisesForForm = useMemo(() => {
     if (!selectedTemplate) return [];
-    return getLoadTrackedExercisesWithCustom(
+    const excluded = new Set(excludedPlanExercises[form.newLogTemplate] ?? []);
+    const base = getLoadTrackedExercisesWithCustom(
       selectedTemplate,
       customExercisesByTemplate[form.newLogTemplate] ?? [],
-    );
-  }, [selectedTemplate, form.newLogTemplate, customExercisesByTemplate]);
+    ).filter((e) => !excluded.has(e.name));
+    const savedOrder = exerciseOrderByTemplate[form.newLogTemplate];
+    if (!savedOrder?.length) return base;
+    const byName = new Map(base.map((e) => [e.name, e]));
+    const ordered = savedOrder.filter((n) => byName.has(n)).map((n) => byName.get(n)!);
+    const orderedSet = new Set(ordered.map((e) => e.name));
+    const rest = base.filter((e) => !orderedSet.has(e.name));
+    return [...ordered, ...rest];
+  }, [selectedTemplate, form.newLogTemplate, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   const bmr = useMemo(
     () => bmrFemaleKg(profile.weightKg, profile.heightCm, profile.age),
@@ -544,12 +570,17 @@ export default function Home() {
   }, [profile.trainingBlockStart]);
 
   const latestLoadsForTemplate = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { lastKg: number; maxKg: number }>();
     const asc = [...trainingLog].sort((a, b) => a.date.localeCompare(b.date));
     for (const log of asc) {
       if (log.templateId !== form.newLogTemplate) continue;
       for (const entry of log.exerciseLoads ?? []) {
-        map.set(entry.exerciseName, maxWeightInEntry(entry));
+        const kg = maxWeightInEntry(entry);
+        const prev = map.get(entry.exerciseName);
+        map.set(entry.exerciseName, {
+          lastKg: kg,
+          maxKg: prev ? Math.max(prev.maxKg, kg) : kg,
+        });
       }
     }
     return map;
@@ -560,12 +591,12 @@ export default function Home() {
     const reference = progressionByTemplate[form.newLogTemplate] ?? [];
     const stepByExercise = new Map(reference.map((item) => [item.name, item.stepKgPerFortnight]));
     const rows: { exerciseName: string; currentKg: number; targetKg: number; weeklyGain: number }[] = [];
-    latestLoadsForTemplate.forEach((currentKg, exerciseName) => {
+    latestLoadsForTemplate.forEach(({ maxKg }, exerciseName) => {
       const step = stepByExercise.get(exerciseName) ?? 1;
       rows.push({
         exerciseName,
-        currentKg,
-        targetKg: Number((currentKg + step * steps).toFixed(1)),
+        currentKg: maxKg,
+        targetKg: Number((maxKg + step * steps).toFixed(1)),
         weeklyGain: Number((step / 2).toFixed(2)),
       });
     });
@@ -764,6 +795,23 @@ export default function Home() {
       }
       return next;
     });
+  }
+
+  function handleExerciseReorder(names: string[]) {
+    setExerciseOrderByTemplate((prev) => ({ ...prev, [form.newLogTemplate]: names }));
+  }
+
+  function handleRemoveExercise(name: string) {
+    const isCustom = (customExercisesByTemplate[form.newLogTemplate] ?? []).includes(name);
+    if (isCustom) {
+      removeCustomExercise(name);
+    } else {
+      setExcludedPlanExercises((prev) => {
+        const list = prev[form.newLogTemplate] ?? [];
+        if (list.includes(name)) return prev;
+        return { ...prev, [form.newLogTemplate]: [...list, name] };
+      });
+    }
   }
 
   // ── Handlers: period / flow ───────────────────────────────────────────────
@@ -1462,8 +1510,20 @@ export default function Home() {
             customExercisesForTemplate={customExercisesByTemplate[form.newLogTemplate] ?? []}
             onSave={form.editingLogId ? saveEditLog : addTrainingLog}
             onCancel={form.resetForm}
+            excludedPlanExercisesForTemplate={excludedPlanExercises[form.newLogTemplate] ?? []}
             onAddCustomExercise={addCustomExerciseToTemplate}
             onRemoveCustomExercise={removeCustomExercise}
+            onRemoveExercise={handleRemoveExercise}
+            onRestorePlanExercise={(name) =>
+              setExcludedPlanExercises((prev) => {
+                const list = (prev[form.newLogTemplate] ?? []).filter((x) => x !== name);
+                const next = { ...prev };
+                if (list.length === 0) delete next[form.newLogTemplate];
+                else next[form.newLogTemplate] = list;
+                return next;
+              })
+            }
+            onReorder={handleExerciseReorder}
           />
         </div>
         <div className={entrenoBlade !== "history" ? "hidden lg:block" : ""}>
