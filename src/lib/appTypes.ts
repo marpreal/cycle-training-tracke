@@ -67,7 +67,7 @@ export type UserProfile = {
   weightGoalWeeks?: number | null;
 };
 
-export type ActiveView = "regla" | "entreno" | "planes" | "nutricion";
+export type ActiveView = "regla" | "entreno" | "planes" | "nutricion" | "espalda";
 
 export type TrainingPlan = {
   id: string;

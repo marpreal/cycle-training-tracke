@@ -96,6 +96,7 @@ import { ExportCard } from "@/components/entreno/ExportCard";
 import { StepsCard } from "@/components/entreno/StepsCard";
 import { TemplatesCard } from "@/components/entreno/TemplatesCard";
 import { PlanCard } from "@/components/entreno/PlanCard";
+import { EspaldaView } from "@/components/EspaldaView";
 
 const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
@@ -193,7 +194,7 @@ export default function Home() {
   // ── Initialisation ────────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("active-view-v1");
-    if (saved === "regla" || saved === "entreno" || saved === "planes" || saved === "nutricion") {
+    if (saved === "regla" || saved === "entreno" || saved === "planes" || saved === "nutricion" || saved === "espalda") {
       setActiveViewRaw(saved);
     }
   }, []);
@@ -1057,7 +1058,7 @@ export default function Home() {
 
       {/* Tab navigation */}
       <section className="view-tabs">
-        {(["regla", "entreno", "planes", "nutricion"] as const).map((view) => (
+        {(["regla", "entreno", "planes", "nutricion", "espalda"] as const).map((view) => (
           <button
             key={view}
             type="button"
@@ -1070,7 +1071,9 @@ export default function Home() {
                 ? "Ejercicio"
                 : view === "planes"
                   ? "Planes"
-                  : "Peso y nutrición"}
+                  : view === "nutricion"
+                    ? "Peso y nutrición"
+                    : "Espalda"}
           </button>
         ))}
       </section>
@@ -1508,6 +1511,11 @@ export default function Home() {
             <p className="muted mt-2 text-xs">Mostrando las 10 medidas más recientes.</p>
           ) : null}
         </article>
+      </section>
+
+      {/* ── ESPALDA view ────────────────────────────────────────────────────── */}
+      <section className={activeView === "espalda" ? "" : "hidden"}>
+        <EspaldaView />
       </section>
 
       {/* ── ENTRENO view ─────────────────────────────────────────────────────── */}
