@@ -7,6 +7,8 @@ export const EXCLUDED_FROM_LOADS = new Set([
   "Rotaciones toracicas",
   "Glute bridge",
   "Abducciones con banda",
+  "Y-T-W",
+  "Estiramiento elevador de la escapula",
 ]);
 
 /** Series por ejercicio en el formulario (min 1, max este valor). */

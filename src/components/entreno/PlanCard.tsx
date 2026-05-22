@@ -124,12 +124,15 @@ async function parseOdtToHtml(file: File): Promise<string> {
         return;
       }
 
-      // Build image map: Pictures/foo.jpg → data:image/jpeg;base64,...
+      // Build image map: normalize paths so both "Pictures/x" and "./Pictures/x" resolve
       const imageMap = new Map<string, string>();
       for (const [name, data] of Object.entries(files)) {
-        if (name.startsWith("Pictures/")) {
+        const lower = name.toLowerCase();
+        if (lower.match(/\.(jpg|jpeg|png|gif|webp|svg)$/)) {
           const mime = getMimeType(name);
-          imageMap.set(name, `data:${mime};base64,${uint8ToBase64(data)}`);
+          const b64 = `data:${mime};base64,${uint8ToBase64(data)}`;
+          imageMap.set(name, b64);
+          imageMap.set(`./${name}`, b64);
         }
       }
 

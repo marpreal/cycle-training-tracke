@@ -460,9 +460,20 @@ export default function Home() {
       if (error || plans === null || updatedAt === null) return;
       const localPlansTs = Number(localStorage.getItem(PLANS_REMOTE_UPDATED_AT_KEY) ?? "0");
       if (updatedAt <= localPlansTs) return; // local is newer
-      // Apply remote plans if they're newer
-      setTrainingPlans(plans);
-      await savePlansToIDB(plans);
+      // Remote is newer — merge: restore images from local IDB for plans the server stripped
+      const localPlans = await loadPlansFromIDB();
+      const localById = new Map(localPlans.map((p) => [p.id, p]));
+      const merged = plans.map((remotePlan) => {
+        if (remotePlan.contentType !== "html") return remotePlan;
+        const local = localById.get(remotePlan.id);
+        // If local copy has images and remote doesn't, keep local content
+        if (local?.contentType === "html" && local.content.includes('<img') && !remotePlan.content.includes('<img')) {
+          return { ...remotePlan, content: local.content };
+        }
+        return remotePlan;
+      });
+      setTrainingPlans(merged);
+      await savePlansToIDB(merged);
       localStorage.setItem(PLANS_REMOTE_UPDATED_AT_KEY, String(updatedAt));
     })();
   }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus]);

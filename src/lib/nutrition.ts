@@ -116,6 +116,14 @@ export const sessionNutritionByTemplate: SessionNutrition[] = [
     proteinExtraGramsMin: 3,
     proteinExtraGramsMax: 10,
   },
+  {
+    templateId: "back",
+    name: "BACK",
+    sessionKcalMin: 150,
+    sessionKcalMax: 240,
+    proteinExtraGramsMin: 5,
+    proteinExtraGramsMax: 12,
+  },
 ];
 
 export function dailyTotalOnTrainingDay(

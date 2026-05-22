@@ -188,4 +188,62 @@ export const trainingTemplates: TrainingDayTemplate[] = [
       },
     ],
   },
+  {
+    id: "back",
+    name: "BACK",
+    focus: "Espalda funcional",
+    blocks: [
+      {
+        title: "Fuerza principal (x3)",
+        exercises: [
+          {
+            name: "Good morning con barra",
+            sets: "3",
+            reps: "10-12",
+            notes: "Espalda neutra, bisagra de cadera, baja controlado",
+          },
+          {
+            name: "Suitcase deadlift",
+            sets: "3",
+            reps: "8-10 por lado",
+            notes: "Peso lateral, core activado, sin inclinar el tronco",
+          },
+        ],
+      },
+      {
+        title: "Accesorio (x3)",
+        exercises: [
+          {
+            name: "Pullover con mancuerna",
+            sets: "3",
+            reps: "10-12",
+            notes: "Costillas abajo, arco controlado",
+          },
+          {
+            name: "Face pull con mancuerna",
+            sets: "3",
+            reps: "15-20",
+            notes: "Codos altos, pausa al final",
+          },
+        ],
+      },
+      {
+        title: "Postura y movilidad",
+        exercises: [
+          {
+            name: "Y-T-W",
+            sets: "2",
+            reps: "8 cada posicion",
+            notes: "Boca abajo, hombros lejos de orejas",
+          },
+          {
+            name: "Estiramiento elevador de la escapula",
+            sets: "2",
+            reps: "30-45 s por lado",
+            notes: "Inclina la cabeza hacia el hombro y rota suavemente",
+          },
+        ],
+      },
+    ],
+  },
 ];

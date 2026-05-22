@@ -30,6 +30,12 @@ export const progressionByTemplate: Record<string, ProgressionExercise[]> = {
     { name: "Sentadilla goblet", refMinKg: 10, refMaxKg: 14, stepKgPerFortnight: 1.5 },
     { name: "Hip thrust unilateral", refMinKg: 10, refMaxKg: 16, stepKgPerFortnight: 1.5 },
   ],
+  back: [
+    { name: "Good morning con barra", refMinKg: 15, refMaxKg: 25, stepKgPerFortnight: 2 },
+    { name: "Suitcase deadlift", refMinKg: 10, refMaxKg: 16, stepKgPerFortnight: 1.5 },
+    { name: "Pullover con mancuerna", refMinKg: 8, refMaxKg: 12, stepKgPerFortnight: 1 },
+    { name: "Face pull con mancuerna", refMinKg: 4, refMaxKg: 8, stepKgPerFortnight: 1 },
+  ],
 };
 
 function toDateOnly(value: string): Date {
