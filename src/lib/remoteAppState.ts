@@ -31,10 +31,17 @@ export async function pushRemotePlans(
   return { ok: true, updatedAt: data.updatedAt };
 }
 
+const REMOTE_PLAN_CONTENT_LIMIT = 200_000; // 200 KB per plan — stay well under Vercel's 4.5 MB limit
+export const REMOTE_PLAN_TOO_LARGE_MARKER = "__local_only__";
+
 function stripPlanImages(plans: TrainingPlan[]): TrainingPlan[] {
   return plans.map((p) => {
     if (p.contentType !== "html") return p;
     const stripped = p.content.replace(/<img[^>]+src="data:[^"]*"[^>]*>/gi, "");
+    if (stripped.length > REMOTE_PLAN_CONTENT_LIMIT) {
+      // Too large to sync — keep the slot on the server but not the content
+      return { ...p, content: REMOTE_PLAN_TOO_LARGE_MARKER };
+    }
     return { ...p, content: stripped };
   });
 }

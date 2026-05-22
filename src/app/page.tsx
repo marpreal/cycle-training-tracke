@@ -82,7 +82,7 @@ import {
   setLocalDataTimestamp,
 } from "@/lib/localDataTimestamp";
 import { buildSnapshot } from "@/lib/appSnapshot";
-import { fetchRemotePlans, fetchRemoteSnapshot, pushRemotePlans, pushRemoteSnapshot } from "@/lib/remoteAppState";
+import { fetchRemotePlans, fetchRemoteSnapshot, pushRemotePlans, pushRemoteSnapshot, REMOTE_PLAN_TOO_LARGE_MARKER } from "@/lib/remoteAppState";
 // Hooks
 import { useTrainingForm } from "@/hooks/useTrainingForm";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
@@ -465,11 +465,15 @@ export default function Home() {
       const localById = new Map(localPlans.map((p) => [p.id, p]));
       const remoteIds = new Set(plans.map((p) => p.id));
       const merged = [
-        // Remote plans, restoring images from local where the server stripped them
+        // Remote plans, restoring local content when server has images stripped or a too-large marker
         ...plans.map((remotePlan) => {
           if (remotePlan.contentType !== "html") return remotePlan;
           const local = localById.get(remotePlan.id);
-          if (local?.contentType === "html" && local.content.includes("<img") && !remotePlan.content.includes("<img")) {
+          if (!local) return remotePlan;
+          const serverHasFullContent =
+            remotePlan.content !== REMOTE_PLAN_TOO_LARGE_MARKER &&
+            remotePlan.content.includes("<img");
+          if (!serverHasFullContent && local.contentType === "html") {
             return { ...remotePlan, content: local.content };
           }
           return remotePlan;
