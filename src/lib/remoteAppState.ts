@@ -22,7 +22,7 @@ export async function pushRemotePlans(
     method: "PUT",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plans }),
+    body: JSON.stringify({ plans: stripPlanImages(plans) }),
   });
   if (res.status === 401) return { ok: false, error: "Sesion caducada; vuelve a entrar con Google" };
   if (res.status === 503) return { ok: false, error: "Servidor sin base de datos" };
