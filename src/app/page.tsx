@@ -460,18 +460,23 @@ export default function Home() {
       if (error || plans === null || updatedAt === null) return;
       const localPlansTs = Number(localStorage.getItem(PLANS_REMOTE_UPDATED_AT_KEY) ?? "0");
       if (updatedAt <= localPlansTs) return; // local is newer
-      // Remote is newer — merge: restore images from local IDB for plans the server stripped
+      // Remote is newer — merge while preserving local images (server always strips them)
       const localPlans = await loadPlansFromIDB();
       const localById = new Map(localPlans.map((p) => [p.id, p]));
-      const merged = plans.map((remotePlan) => {
-        if (remotePlan.contentType !== "html") return remotePlan;
-        const local = localById.get(remotePlan.id);
-        // If local copy has images and remote doesn't, keep local content
-        if (local?.contentType === "html" && local.content.includes('<img') && !remotePlan.content.includes('<img')) {
-          return { ...remotePlan, content: local.content };
-        }
-        return remotePlan;
-      });
+      const remoteIds = new Set(plans.map((p) => p.id));
+      const merged = [
+        // Remote plans, restoring images from local where the server stripped them
+        ...plans.map((remotePlan) => {
+          if (remotePlan.contentType !== "html") return remotePlan;
+          const local = localById.get(remotePlan.id);
+          if (local?.contentType === "html" && local.content.includes("<img") && !remotePlan.content.includes("<img")) {
+            return { ...remotePlan, content: local.content };
+          }
+          return remotePlan;
+        }),
+        // Local-only plans (never successfully pushed yet) — keep them with images intact
+        ...localPlans.filter((p) => !remoteIds.has(p.id)),
+      ];
       setTrainingPlans(merged);
       await savePlansToIDB(merged);
       localStorage.setItem(PLANS_REMOTE_UPDATED_AT_KEY, String(updatedAt));
