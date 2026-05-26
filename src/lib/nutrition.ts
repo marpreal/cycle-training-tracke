@@ -56,12 +56,9 @@ export function goalCalorieAdjustment(
   const diff = weightKg - (targetWeightKg as number); // positive=loss, negative=gain
 
   let raw: number;
-  if (weightGoalWeeks != null && weightGoalWeeks > 0) {
-    // rate-based: diff kg over N weeks → kcal/day adjustment
-    raw = -Math.round(((diff / weightGoalWeeks) * 7700) / 7);
-  } else {
-    raw = goal === "loss" ? -400 : 300;
-  }
+  const weeks = weightGoalWeeks != null && weightGoalWeeks > 0 ? weightGoalWeeks : 12;
+  // rate-based: diff kg over N weeks → kcal/day adjustment (default: 12-week reference)
+  raw = -Math.round(((diff / weeks) * 7700) / 7);
 
   if (goal === "loss") {
     // Clamp to [-500, -300]

@@ -210,7 +210,7 @@ export default function Home() {
       setExcludedPlanExercises(loadExcludedPlanExercisesByTemplate());
       setExerciseOrderByTemplate(loadExerciseOrderByTemplate());
       setSettings(s);
-      setPeriodStartInput(s.lastPeriodStart);
+      setPeriodStartInput(today);
       setTrainingLog(loadTrainingLog());
       setPeriodLog(loadPeriodLog());
       setProfile(prof);
@@ -692,6 +692,33 @@ export default function Home() {
     const today = new Date();
     return Math.max(1, Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   }, [settings.isPeriodOngoing, settings.lastPeriodStart]);
+
+  const periodStats = useMemo(() => {
+    const closed = sortedPeriodLog.filter((r) => r.endDate !== null);
+    if (closed.length === 0) return null;
+    const durations = closed.map((r) => {
+      const start = new Date(`${r.startDate}T00:00:00`).getTime();
+      const end = new Date(`${r.endDate!}T00:00:00`).getTime();
+      return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    });
+    const ascending = [...sortedPeriodLog].sort((a, b) => a.startDate.localeCompare(b.startDate));
+    const cycleLengths: number[] = [];
+    for (let i = 1; i < ascending.length; i++) {
+      const prev = new Date(`${ascending[i - 1].startDate}T00:00:00`).getTime();
+      const curr = new Date(`${ascending[i].startDate}T00:00:00`).getTime();
+      cycleLengths.push(Math.round((curr - prev) / (1000 * 60 * 60 * 24)));
+    }
+    const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const avgDuration = Math.round(avg(durations) * 10) / 10;
+    const minDuration = Math.min(...durations);
+    const maxDuration = Math.max(...durations);
+    const avgCycle = cycleLengths.length > 0 ? Math.round(avg(cycleLengths) * 10) / 10 : null;
+    const minCycle = cycleLengths.length > 0 ? Math.min(...cycleLengths) : null;
+    const maxCycle = cycleLengths.length > 0 ? Math.max(...cycleLengths) : null;
+    const isRegular =
+      cycleLengths.length >= 2 ? maxCycle! - minCycle! <= 7 : null;
+    return { count: closed.length, avgDuration, minDuration, maxDuration, avgCycle, minCycle, maxCycle, isRegular };
+  }, [sortedPeriodLog]);
 
   const trainingStats = useMemo(() => {
     if (!hasHydrated) return { week: 0, month: 0, year: 0, volumeWeek: 0, volumeMonth: 0, volumeYear: 0 };
@@ -1317,6 +1344,65 @@ export default function Home() {
         </article>
       </section>
 
+      {/* ── REGLA: Estadísticas ─────────────────────────────────────────────── */}
+      {hasHydrated && periodStats ? (
+        <section className={`${activeView === "regla" ? "" : "hidden"}`}>
+          <article className="card max-w-4xl">
+            <h2 className="section-title">Estadísticas de tu ciclo</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+              <div className="metric-card">
+                <p className="metric-label">Reglas registradas</p>
+                <p className="metric-value">{periodStats.count}</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Duración media regla</p>
+                <p className="metric-value-small">{periodStats.avgDuration} días</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Rango de duración</p>
+                <p className="metric-value-small">{periodStats.minDuration}–{periodStats.maxDuration} días</p>
+              </div>
+              {periodStats.avgCycle !== null ? (
+                <div className="metric-card">
+                  <p className="metric-label">Ciclo medio (inicio a inicio)</p>
+                  <p className="metric-value-small">{periodStats.avgCycle} días</p>
+                </div>
+              ) : null}
+            </div>
+            {periodStats.avgCycle !== null ? (
+              <div className="phase-description text-sm space-y-1">
+                <p>
+                  <strong>Regularidad:</strong>{" "}
+                  {periodStats.isRegular === null
+                    ? "Necesitas al menos 2 ciclos para evaluar la regularidad."
+                    : periodStats.isRegular
+                      ? "Tus ciclos son regulares (variación ≤ 7 días entre el más corto y el más largo)."
+                      : `Tus ciclos varían bastante (${periodStats.minCycle}–${periodStats.maxCycle} días entre inicio e inicio). Una variación > 7 días se considera irregular; puede deberse a estrés, cambios de peso u otros factores.`}
+                </p>
+                {periodStats.avgCycle !== null && (
+                  <p>
+                    <strong>Ciclo medio calculado:</strong> {periodStats.avgCycle} días (vs. {settings.cycleLength} días configurados).{" "}
+                    {Math.abs(periodStats.avgCycle - settings.cycleLength) >= 2
+                      ? `Podrías actualizar la duración del ciclo a ~${Math.round(periodStats.avgCycle)} días para mejorar la predicción.`
+                      : "Tu configuración coincide bien con tus datos reales."}
+                  </p>
+                )}
+                {periodStats.avgDuration !== periodStats.minDuration || periodStats.avgDuration !== periodStats.maxDuration ? (
+                  <p>
+                    <strong>Duración de la regla:</strong> media de {periodStats.avgDuration} días, entre {periodStats.minDuration} y {periodStats.maxDuration} días.{" "}
+                    {Math.abs(periodStats.avgDuration - settings.periodLength) >= 1
+                      ? `Tu configuración marca ${settings.periodLength} días; la media real es ${periodStats.avgDuration} días.`
+                      : null}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="muted text-sm">Registra al menos 2 reglas completas para ver estadísticas de ciclo.</p>
+            )}
+          </article>
+        </section>
+      ) : null}
+
       {/* ── PLANES view ─────────────────────────────────────────────────────── */}
       <section className={`mx-auto w-full max-w-4xl ${activeView === "planes" ? "" : "hidden"}`}>
         <PlanCard
@@ -1345,7 +1431,7 @@ export default function Home() {
                 type="text"
                 inputMode="decimal"
                 value={measurementWeight}
-                onChange={(e) => setMeasurementWeight(e.target.value.replace(",", "."))}
+                onChange={(e) => setMeasurementWeight(e.target.value)}
                 placeholder="ej. 56,5"
               />
             </label>
@@ -1394,7 +1480,7 @@ export default function Home() {
                 type="text"
                 inputMode="decimal"
                 value={measurementWaist}
-                onChange={(e) => setMeasurementWaist(e.target.value.replace(",", "."))}
+                onChange={(e) => setMeasurementWaist(e.target.value)}
               />
             </label>
             <label className="field">
@@ -1403,7 +1489,7 @@ export default function Home() {
                 type="text"
                 inputMode="decimal"
                 value={measurementHip}
-                onChange={(e) => setMeasurementHip(e.target.value.replace(",", "."))}
+                onChange={(e) => setMeasurementHip(e.target.value)}
               />
             </label>
             <label className="field">
@@ -1412,7 +1498,7 @@ export default function Home() {
                 type="text"
                 inputMode="decimal"
                 value={measurementThigh}
-                onChange={(e) => setMeasurementThigh(e.target.value.replace(",", "."))}
+                onChange={(e) => setMeasurementThigh(e.target.value)}
               />
             </label>
             <label className="field sm:col-span-2">
@@ -1685,7 +1771,7 @@ export default function Home() {
               autoComplete="off"
               value={profileWeightDraft}
               onChange={(e) => {
-                const raw = e.target.value.replace(",", ".");
+                const raw = e.target.value;
                 setProfileWeightDraft(raw);
                 const n = parseOptionalNumber(raw);
                 if (n != null && n >= 30 && n <= 250) setProfile((p) => ({ ...p, weightKg: n }));
@@ -1762,7 +1848,7 @@ export default function Home() {
               min={1}
               max={104}
               value={profile.weightGoalWeeks ?? ""}
-              placeholder="opcional"
+              placeholder="12 (por defecto)"
               onChange={(e) => {
                 const v = e.target.value;
                 setProfile((p) => ({ ...p, weightGoalWeeks: v === "" ? null : Number(v) }));
@@ -1828,6 +1914,16 @@ export default function Home() {
           En días con entreno, suma aprox. el gasto de la sesión a tu objetivo calórico. La proteína
           diaria suele mantenerse; en tren inferior o sesiones largas puedes acercarte al tramo alto del rango.
         </p>
+        {weightGoal !== "maintenance" && (
+          <p className="phase-description mt-2 text-sm">
+            <strong>Ajuste calórico:</strong> {calorieAdjustment} kcal/día
+            {Math.abs(calorieAdjustment) >= 490
+              ? " (límite máximo recomendado de déficit/superávit — si tu objetivo es muy grande o el plazo muy corto, la tabla no varía más; ajusta las semanas para un cálculo proporcional)."
+              : profile.weightGoalWeeks == null
+                ? " (referencia a 12 semanas — indica el plazo exacto en «Plazo al objetivo» para afinar el cálculo)."
+                : "."}
+          </p>
+        )}
         <div className="table-wrapper mt-4">
           <table>
             <thead>
