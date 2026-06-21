@@ -42,6 +42,7 @@ export interface UseTrainingFormReturn {
   removeLastSetForExercise: (exercise: string) => void;
   // lifecycle
   changeTemplate: (templateId: string) => void;
+  seedDefaultLoads: (loads: FormSetsMap, details: DetailMap) => void;
   resetForm: () => void;
   initDate: (today: string) => void;
   populateFormFromRecord: (log: TrainingRecord) => void;
@@ -119,6 +120,12 @@ export function useTrainingForm(): UseTrainingFormReturn {
     setLoadDetailByExercise({});
   }
 
+  /** Prefill cargas con los valores de la última sesión (editable por la usuaria). */
+  function seedDefaultLoads(loads: FormSetsMap, details: DetailMap) {
+    setNewLogLoads(loads);
+    setLoadDetailByExercise(details);
+  }
+
   function resetForm() {
     setEditingLogId(null);
     setNewLogNotes("");
@@ -187,6 +194,7 @@ export function useTrainingForm(): UseTrainingFormReturn {
     addSetForExercise,
     removeLastSetForExercise,
     changeTemplate,
+    seedDefaultLoads,
     resetForm,
     initDate,
     populateFormFromRecord,

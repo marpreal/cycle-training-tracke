@@ -259,8 +259,9 @@ export function TrainingFormCard({
         <div className="mt-4">
           <p className="block-title">Cargas por ejercicio</p>
           <p className="muted mb-3 text-xs">
-            Por defecto: una fila de kg y reps (se copia a todas las series). Activa &quot;Detalle
-            por serie&quot; para pesos distintos. Puedes añadir o quitar series (hasta {MAX_LOAD_SETS}).
+            Cada ejercicio empieza con los kg y reps de tu última sesión; cámbialos si hace falta.
+            Activa &quot;Detalle por serie&quot; para pesos distintos. Puedes añadir o quitar series
+            (hasta {MAX_LOAD_SETS}).
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <label className="field min-w-[12rem] flex-1">

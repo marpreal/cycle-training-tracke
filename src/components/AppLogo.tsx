@@ -11,8 +11,8 @@ export function AppLogo({ className = "" }: { className?: string }) {
     >
       <defs>
         <linearGradient id="appLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ec4899" />
-          <stop offset="100%" stopColor="#db2777" />
+          <stop offset="0%" stopColor="#8b5cf6" />
+          <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
       </defs>
       <circle cx="24" cy="24" r="22" fill="url(#appLogoGrad)" opacity="0.15" />

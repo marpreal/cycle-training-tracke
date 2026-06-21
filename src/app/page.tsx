@@ -27,6 +27,7 @@ import {
   getLoadTrackedExercisesWithCustom,
   maxWeightInEntry,
   volumeKgRepsForSession,
+  MAX_LOAD_SETS,
 } from "@/lib/trainingLoads";
 import type {
   ActiveView,
@@ -84,7 +85,7 @@ import {
 import { buildSnapshot } from "@/lib/appSnapshot";
 import { fetchRemotePlans, fetchRemoteSnapshot, pushRemotePlans, pushRemoteSnapshot, REMOTE_PLAN_TOO_LARGE_MARKER } from "@/lib/remoteAppState";
 // Hooks
-import { useTrainingForm } from "@/hooks/useTrainingForm";
+import { useTrainingForm, type FormSetsMap, type DetailMap } from "@/hooks/useTrainingForm";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
 import { useStepsForm } from "@/hooks/useStepsForm";
 // Components
@@ -645,6 +646,36 @@ export default function Home() {
     }
     return map;
   }, [trainingLog, form.newLogTemplate]);
+
+  // Valores por defecto del formulario: kg y reps de la última sesión de cada
+  // ejercicio (en la plantilla seleccionada). La usuaria puede cambiarlos.
+  const lastSessionDefaults = useMemo(() => {
+    const loads: FormSetsMap = {};
+    const details: DetailMap = {};
+    const asc = [...trainingLog].sort((a, b) => a.date.localeCompare(b.date));
+    for (const log of asc) {
+      if (log.templateId !== form.newLogTemplate) continue;
+      for (const entry of log.exerciseLoads ?? []) {
+        const rows = entry.sets.map((s) => ({
+          w: s.weightKg > 0 ? String(s.weightKg) : "",
+          r: s.reps > 0 ? String(s.reps) : "",
+        }));
+        if (rows.length === 0) continue;
+        loads[entry.exerciseName] = rows.slice(0, MAX_LOAD_SETS);
+        const allSame =
+          rows.length >= 2 && rows.every((r) => r.w === rows[0].w && r.r === rows[0].r);
+        details[entry.exerciseName] = !allSame;
+      }
+    }
+    return { loads, details };
+  }, [trainingLog, form.newLogTemplate]);
+
+  // Prefill the form with last-session loads (skip while editing an existing log).
+  useEffect(() => {
+    if (form.editingLogId) return;
+    form.seedDefaultLoads(lastSessionDefaults.loads, lastSessionDefaults.details);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastSessionDefaults, form.editingLogId]);
 
   const dynamicProgressionRows = useMemo(() => {
     const steps = Math.max(1, Math.floor(progressionHorizonWeeks / 2));

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 // coaching references for each movement, instead of reusing mismatched generic
 // weight-training diagrams.
 
-const A = "#ec4899";
+const A = "#8b5cf6";
 const G = "#d1d5db";
 const D = "#374151";
 const B = "#0ea5e9";
@@ -64,7 +64,7 @@ function SvgThoracicTowel() {
   return (
     <ExerciseDiagram label="Extensión torácica tumbada sobre una toalla enrollada">
       <line x1="18" y1="91" x2="164" y2="91" stroke={G} strokeWidth="3" strokeLinecap="round" />
-      <ellipse cx="88" cy="89" rx="10" ry="7" fill="#f9a8d4" stroke={A} strokeWidth="2" />
+      <ellipse cx="88" cy="89" rx="10" ry="7" fill="#c4b5fd" stroke={A} strokeWidth="2" />
       <circle cx="47" cy="78" r="9" fill="none" stroke={D} strokeWidth={SW} />
       <path d="M56 82 C70 82, 84 76, 99 83" fill="none" stroke={D} strokeWidth={SW} strokeLinecap="round" />
       <line x1="98" y1="83" x2="115" y2="66" stroke={D} strokeWidth={SW} strokeLinecap="round" />
@@ -154,7 +154,7 @@ function SvgBandPullApart() {
 function SvgFacePull() {
   return (
     <ExerciseDiagram label="Face pull con banda anclada a la altura de la cara y codos altos">
-      <circle cx="31" cy="46" r="5" fill="#f9a8d4" stroke={A} strokeWidth="2" />
+      <circle cx="31" cy="46" r="5" fill="#c4b5fd" stroke={A} strokeWidth="2" />
       <line x1="31" y1="23" x2="31" y2="96" stroke={G} strokeWidth="4" strokeLinecap="round" />
       <circle cx="133" cy="47" r="9" fill="none" stroke={D} strokeWidth={SW} />
       <line x1="133" y1="56" x2="133" y2="88" stroke={D} strokeWidth={SW} strokeLinecap="round" />
@@ -318,7 +318,7 @@ function ExerciseCard({ ex }: { ex: Exercise }) {
     <article className="card flex flex-col gap-3">
       <div
         style={{
-          background: "#fdf2f8",
+          background: "#f5f3ff",
           borderRadius: "0.75rem",
           padding: "0.75rem",
           display: "flex",
@@ -334,7 +334,7 @@ function ExerciseCard({ ex }: { ex: Exercise }) {
         <p
           style={{
             display: "inline-block",
-            background: "linear-gradient(145deg,#ec4899,#db2777)",
+            background: "linear-gradient(145deg,#8b5cf6,#7c3aed)",
             color: "#fff",
             borderRadius: "999px",
             padding: "0.15rem 0.6rem",
@@ -353,7 +353,7 @@ function ExerciseCard({ ex }: { ex: Exercise }) {
         <p
           style={{
             marginTop: "0.5rem",
-            borderLeft: "3px solid #ec4899",
+            borderLeft: "3px solid #8b5cf6",
             paddingLeft: "0.6rem",
             fontSize: "0.82rem",
             color: "var(--muted)",
@@ -441,7 +441,7 @@ export function EspaldaView() {
               <span style={{ fontWeight: 500 }}>{item.name}</span>
               <span
                 style={{
-                  color: "#ec4899",
+                  color: "#8b5cf6",
                   fontWeight: 700,
                   fontSize: "0.8rem",
                   whiteSpace: "nowrap",
@@ -483,7 +483,7 @@ export function EspaldaView() {
               <span style={{ fontWeight: 500 }}>{item.name}</span>
               <span
                 style={{
-                  color: "#ec4899",
+                  color: "#8b5cf6",
                   fontWeight: 700,
                   fontSize: "0.8rem",
                   whiteSpace: "nowrap",

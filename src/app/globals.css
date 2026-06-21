@@ -5,7 +5,7 @@
   --foreground: #111827;
   --card: #ffffff;
   --border: #e5e7eb;
-  --accent: #ec4899;
+  --accent: #8b5cf6;
   --muted: #6b7280;
 }
 
@@ -80,7 +80,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 1rem;
-  background: linear-gradient(140deg, #fff 0%, #fdf2f8 100%);
+  background: linear-gradient(140deg, #fff 0%, #f5f3ff 100%);
 }
 
 .metric-label {
@@ -122,20 +122,20 @@ textarea {
 }
 
 .primary-button {
-  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  background: linear-gradient(145deg, #8b5cf6 0%, #7c3aed 100%);
   color: white;
   margin-top: 0;
-  box-shadow: 0 8px 20px rgba(236, 72, 153, 0.35);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.35);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .primary-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(236, 72, 153, 0.42);
+  box-shadow: 0 12px 26px rgba(139, 92, 246, 0.42);
 }
 
 .primary-button:focus-visible {
-  outline: 2px solid #f472b6;
+  outline: 2px solid #a78bfa;
   outline-offset: 2px;
 }
 
@@ -215,9 +215,9 @@ textarea {
 }
 
 .account-bar-btn {
-  border: 1px solid #fbcfe8;
+  border: 1px solid #ddd6fe;
   background: #fff;
-  color: #9d174d;
+  color: #5b21b6;
   border-radius: 999px;
   padding: 0.3rem 0.7rem;
   font-size: 0.8rem;
@@ -226,7 +226,7 @@ textarea {
 }
 
 .account-bar-btn:hover {
-  background: #fdf2f8;
+  background: #f5f3ff;
 }
 
 .account-bar-btn:disabled {
@@ -235,9 +235,9 @@ textarea {
 }
 
 .flow-button {
-  border: 1px solid #fbcfe8;
+  border: 1px solid #ddd6fe;
   background: #fff;
-  color: #9d174d;
+  color: #5b21b6;
   border-radius: 999px;
   padding: 0.4rem 0.85rem;
   font-size: 0.85rem;
@@ -247,20 +247,20 @@ textarea {
 }
 
 .flow-button:hover {
-  background: #fdf2f8;
+  background: #f5f3ff;
 }
 
 .flow-button.is-active {
-  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  background: linear-gradient(145deg, #8b5cf6 0%, #7c3aed 100%);
   color: #fff;
   border-color: transparent;
 }
 
 .flow-tag {
   display: inline-block;
-  background: #fdf2f8;
-  color: #9d174d;
-  border: 1px solid #fbcfe8;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
   font-size: 0.75rem;
@@ -274,9 +274,9 @@ textarea {
 }
 
 .view-tab {
-  border: 1px solid #fbcfe8;
+  border: 1px solid #ddd6fe;
   background: #fff;
-  color: #9d174d;
+  color: #5b21b6;
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   font-weight: 700;
@@ -284,7 +284,7 @@ textarea {
 }
 
 .view-tab.is-active {
-  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
+  background: linear-gradient(145deg, #8b5cf6 0%, #7c3aed 100%);
   color: #fff;
   border-color: transparent;
 }
@@ -307,7 +307,7 @@ textarea {
 }
 
 .date-picker-trigger:hover {
-  border-color: #f9a8d4;
+  border-color: #c4b5fd;
 }
 
 .date-picker-panel {
@@ -335,8 +335,8 @@ textarea {
 
 .date-picker-nav-btn {
   border: none;
-  background: #fdf2f8;
-  color: #9d174d;
+  background: #f5f3ff;
+  color: #5b21b6;
   width: 2rem;
   height: 2rem;
   border-radius: 0.45rem;
@@ -385,7 +385,7 @@ textarea {
 }
 
 .date-picker-cell:hover:not(.date-picker-cell--empty) {
-  background: #fdf2f8;
+  background: #f5f3ff;
 }
 
 .date-picker-cell--empty {
@@ -551,13 +551,13 @@ textarea {
 
 .action-start {
   color: #fff;
-  background: linear-gradient(145deg, #ec4899 0%, #db2777 100%);
-  box-shadow: 0 10px 20px rgba(236, 72, 153, 0.28);
+  background: linear-gradient(145deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 10px 20px rgba(139, 92, 246, 0.28);
 }
 
 .action-start:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(236, 72, 153, 0.35);
+  box-shadow: 0 12px 24px rgba(139, 92, 246, 0.35);
 }
 
 .action-end {
@@ -626,7 +626,7 @@ textarea {
 
 .session-card.is-editing {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.15);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
 }
 
 .session-card-header {
@@ -767,8 +767,8 @@ textarea {
 }
 
 .load-stepper-btn:hover:not(:disabled) {
-  background: #fdf2f8;
-  border-color: #f9a8d4;
+  background: #f5f3ff;
+  border-color: #c4b5fd;
 }
 
 .load-stepper-btn:disabled {
