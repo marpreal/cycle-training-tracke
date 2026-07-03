@@ -28,6 +28,10 @@ export type AppSnapshotV1 = {
     progressionHorizonWeeks: number;
     /** Ejercicios extra por id de plantilla. */
     customExercisesByTemplate?: Record<string, string[]>;
+    /** Orden manual de ejercicios por id de plantilla. */
+    exerciseOrderByTemplate?: Record<string, string[]>;
+    /** Ejercicios del plan ocultados por id de plantilla. */
+    excludedPlanExercises?: Record<string, string[]>;
   };
 };
 
@@ -46,6 +50,19 @@ export function buildSnapshot(parts: {
     updatedAt: Date.now(),
     ...parts,
   };
+}
+
+/** Sanitiza un mapa `{ templateId: string[] }`; devuelve undefined si queda vacío. */
+function sanitizeNamesByTemplate(raw: unknown): Record<string, string[]> | undefined {
+  if (raw == null || typeof raw !== "object") return undefined;
+  const result: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+      const names = v.map((s) => s.trim()).filter(Boolean);
+      if (names.length > 0) result[k] = names;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function isPeriodSettings(x: unknown): x is PeriodSettings {
@@ -146,18 +163,12 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
         ? Math.round(p.progressionHorizonWeeks)
         : 6;
     preferences = { progressionHorizonWeeks };
-    if (p.customExercisesByTemplate != null && typeof p.customExercisesByTemplate === "object") {
-      const rawCustom = p.customExercisesByTemplate as Record<string, unknown>;
-      const custom: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(rawCustom)) {
-        if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
-          custom[k] = v.map((s) => s.trim()).filter(Boolean);
-        }
-      }
-      if (Object.keys(custom).length > 0) {
-        preferences = { ...preferences, customExercisesByTemplate: custom };
-      }
-    }
+    const custom = sanitizeNamesByTemplate(p.customExercisesByTemplate);
+    if (custom) preferences = { ...preferences, customExercisesByTemplate: custom };
+    const order = sanitizeNamesByTemplate(p.exerciseOrderByTemplate);
+    if (order) preferences = { ...preferences, exerciseOrderByTemplate: order };
+    const excluded = sanitizeNamesByTemplate(p.excludedPlanExercises);
+    if (excluded) preferences = { ...preferences, excludedPlanExercises: excluded };
   }
 
   const trainingLog = o.trainingLog.map((log) => {

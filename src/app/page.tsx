@@ -393,6 +393,12 @@ export default function Home() {
       if (snapshot.preferences?.customExercisesByTemplate) {
         setCustomExercisesByTemplate(snapshot.preferences.customExercisesByTemplate);
       }
+      if (snapshot.preferences?.exerciseOrderByTemplate) {
+        setExerciseOrderByTemplate(snapshot.preferences.exerciseOrderByTemplate);
+      }
+      if (snapshot.preferences?.excludedPlanExercises) {
+        setExcludedPlanExercises(snapshot.preferences.excludedPlanExercises);
+      }
       // Plans are synced via /api/plans — not from the main snapshot anymore.
       // (Legacy: snapshot.trainingPlans is ignored; dedicated pull handles plans.)
       setLocalDataTimestamp(snapshot.updatedAt);
@@ -409,6 +415,7 @@ export default function Home() {
     const pack = {
       settings, trainingLog, periodLog, profile,
       measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate,
+      exerciseOrderByTemplate, excludedPlanExercises,
     };
     const next = JSON.stringify(pack);
     if (remoteApplyRef.current) {
@@ -424,7 +431,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -435,7 +442,10 @@ export default function Home() {
       pushTimerRef.current = null;
       const snap = buildSnapshot({
         settings, trainingLog, periodLog, profile, measurementLog, stepsLog,
-        preferences: { progressionHorizonWeeks, customExercisesByTemplate },
+        preferences: {
+          progressionHorizonWeeks, customExercisesByTemplate,
+          exerciseOrderByTemplate, excludedPlanExercises,
+        },
       });
       void (async () => {
         const { ok, error, updatedAt } = await pushRemoteSnapshot(snap);
@@ -448,7 +458,7 @@ export default function Home() {
       })();
     }, 1200);
     return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
-  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate]);
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   // ── Remote sync: plans pull (dedicated endpoint) ──────────────────────────
   useEffect(() => {

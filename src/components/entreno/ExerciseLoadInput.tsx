@@ -7,6 +7,8 @@ interface ExerciseLoadInputProps {
   sets: { w: string; r: string }[];
   isDetail: boolean;
   isDragging: boolean;
+  /** Only true while its drag handle is pressed, so inputs stay selectable otherwise. */
+  draggable: boolean;
   dragIndicator: "top" | "bottom" | null;
   lastSessionKg: number | undefined;
   maxKg: number | undefined;
@@ -23,6 +25,7 @@ export function ExerciseLoadInput({
   sets,
   isDetail,
   isDragging,
+  draggable,
   dragIndicator,
   lastSessionKg,
   maxKg,
@@ -41,7 +44,7 @@ export function ExerciseLoadInput({
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={cls} data-exercise={exerciseName}>
+    <div className={cls} data-exercise={exerciseName} draggable={draggable}>
       <div className="load-exercise-card-head">
         <div className="flex items-center gap-1.5">
           <span className="drag-handle" data-drag-handle aria-label="Arrastrar para reordenar">⠿</span>

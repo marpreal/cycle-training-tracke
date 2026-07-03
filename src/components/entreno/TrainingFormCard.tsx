@@ -74,6 +74,9 @@ export function TrainingFormCard({
   // ── Exercise drag-and-drop ordering (mouse + touch) ─────────────────────
   const [orderedNames, setOrderedNames] = useState<string[]>([]);
   const prevNamesKey = useRef("");
+  // A card is only `draggable` while its handle is pressed, so text stays selectable
+  // in the load inputs the rest of the time.
+  const [armedName, setArmedName] = useState<string | null>(null);
   const [draggingName, setDraggingName] = useState<string | null>(null);
   const [dragOverName, setDragOverName] = useState<string | null>(null);
   const [dragOverHalf, setDragOverHalf] = useState<"top" | "bottom">("top");
@@ -130,6 +133,17 @@ export function TrainingFormCard({
   );
 
   // ── Desktop drag events (delegated on stack container) ─────────────────
+  // Arm `draggable` on the pressed card so the native dragstart can fire (HTML5
+  // drag only starts from an element with draggable="true").
+  function onStackMouseDown(e: React.MouseEvent) {
+    const handle = (e.target as HTMLElement).closest("[data-drag-handle]");
+    if (!handle) {
+      if (armedName) setArmedName(null);
+      return;
+    }
+    const card = (e.target as HTMLElement).closest<HTMLElement>("[data-exercise]");
+    setArmedName(card?.dataset.exercise ?? null);
+  }
   function onStackDragStart(e: React.DragEvent) {
     const handle = (e.target as HTMLElement).closest("[data-drag-handle]");
     if (!handle) { e.preventDefault(); return; }
@@ -156,10 +170,12 @@ export function TrainingFormCard({
     }
     setDraggingName(null);
     setDragOverName(null);
+    setArmedName(null);
   }
   function onStackDragEnd() {
     setDraggingName(null);
     setDragOverName(null);
+    setArmedName(null);
   }
 
   // ── Touch drag events ─────────────────────────────────────────────────
@@ -321,6 +337,8 @@ export function TrainingFormCard({
           <div
             className="load-exercise-stack"
             ref={stackRef}
+            onMouseDown={onStackMouseDown}
+            onMouseUp={() => setArmedName(null)}
             onDragStart={onStackDragStart}
             onDragOver={onStackDragOver}
             onDrop={onStackDrop}
@@ -339,6 +357,7 @@ export function TrainingFormCard({
                   sets={getFormSetsForExercise(exercise.name)}
                   isDetail={isLoadDetail(exercise.name)}
                   isDragging={draggingName === exercise.name}
+                  draggable={armedName === exercise.name}
                   dragIndicator={
                     dragOverName === exercise.name ? dragOverHalf : null
                   }
