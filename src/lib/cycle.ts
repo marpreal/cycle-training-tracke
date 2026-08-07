@@ -1,3 +1,5 @@
+import { DEFAULT_ISO_DATE, type PeriodRecord } from "@/lib/appTypes";
+
 export type PhaseInfo = {
   name: string;
   description: string;
@@ -70,4 +72,99 @@ export function formatDate(date: Date): string {
     month: "short",
     year: "numeric",
   });
+}
+
+/** Un ciclo cerrado (de inicio de regla a inicio de la siguiente) comparado con lo esperado. */
+export type CycleDelay = {
+  /** Inicio de la regla que cierra el ciclo (la "siguiente" regla). */
+  startDate: string;
+  /** Inicio de la regla anterior, desde donde se cuenta el ciclo. */
+  previousStartDate: string;
+  /** Días reales entre inicio e inicio. */
+  actualCycleLength: number;
+  /** Días esperados según la configuración del ciclo. */
+  expectedCycleLength: number;
+  /** Positivo = retraso, negativo = adelanto, 0 = puntual. */
+  delayDays: number;
+};
+
+export type PeriodDelayReport = {
+  /** Un elemento por ciclo cerrado, del más reciente al más antiguo. */
+  cycles: CycleDelay[];
+  /** Retraso en curso ahora mismo (días desde la fecha prevista). Null si aún no toca o la regla está activa. */
+  currentDelayDays: number | null;
+  /** Fecha prevista para la regla actual (solo informativa cuando hay retraso en curso). */
+  currentExpectedDate: string | null;
+  /** Nº de ciclos que llegaron tarde (delayDays > 0). */
+  lateCount: number;
+  /** Nº de ciclos que se adelantaron (delayDays < 0). */
+  earlyCount: number;
+  /** Mayor retraso registrado en días (0 si nunca hubo retraso). */
+  maxDelayDays: number;
+  /** Media de los retrasos (solo ciclos con delayDays > 0), redondeada a 1 decimal. Null si no hubo ninguno. */
+  avgDelayDays: number | null;
+};
+
+function isoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * Compara cada ciclo registrado con la duración de ciclo configurada para saber
+ * cuántos días se retrasó (o adelantó) la regla, e incluye el retraso en curso.
+ */
+export function buildPeriodDelayReport(
+  periodLog: PeriodRecord[],
+  cycleLength: number,
+  isPeriodOngoing: boolean,
+  lastPeriodStart: string,
+  today = new Date(),
+): PeriodDelayReport {
+  const ascending = [...periodLog].sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const cycles: CycleDelay[] = [];
+  for (let i = 1; i < ascending.length; i++) {
+    const previousStartDate = ascending[i - 1].startDate;
+    const startDate = ascending[i].startDate;
+    const actualCycleLength = daysBetween(toDateOnly(previousStartDate), toDateOnly(startDate));
+    if (actualCycleLength <= 0) continue;
+    cycles.push({
+      startDate,
+      previousStartDate,
+      actualCycleLength,
+      expectedCycleLength: cycleLength,
+      delayDays: actualCycleLength - cycleLength,
+    });
+  }
+  cycles.reverse();
+
+  let currentDelayDays: number | null = null;
+  let currentExpectedDate: string | null = null;
+  // Con la fecha placeholder (aún sin ninguna regla registrada) el "retraso" serían
+  // miles de días, así que no se muestra.
+  if (!isPeriodOngoing && lastPeriodStart && lastPeriodStart !== DEFAULT_ISO_DATE) {
+    const expected = getNextPeriodDate(lastPeriodStart, cycleLength);
+    const overdue = daysBetween(expected, today);
+    if (overdue > 0) {
+      currentDelayDays = overdue;
+      currentExpectedDate = isoDate(expected);
+    }
+  }
+
+  const lateDelays = cycles.filter((c) => c.delayDays > 0).map((c) => c.delayDays);
+  const avgDelayDays =
+    lateDelays.length > 0
+      ? Math.round((lateDelays.reduce((a, b) => a + b, 0) / lateDelays.length) * 10) / 10
+      : null;
+
+  return {
+    cycles,
+    currentDelayDays,
+    currentExpectedDate,
+    lateCount: lateDelays.length,
+    earlyCount: cycles.filter((c) => c.delayDays < 0).length,
+    maxDelayDays: lateDelays.length > 0 ? Math.max(...lateDelays) : 0,
+    avgDelayDays,
+  };
 }

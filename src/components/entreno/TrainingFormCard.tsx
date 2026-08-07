@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { SpanishDatePicker } from "@/components/SpanishDatePicker";
 import { ExerciseLoadInput } from "./ExerciseLoadInput";
 import { trainingTemplates } from "@/data/trainingPlan";
@@ -72,8 +72,10 @@ export function TrainingFormCard({
   } = form;
 
   // ── Exercise drag-and-drop ordering (mouse + touch) ─────────────────────
-  const [orderedNames, setOrderedNames] = useState<string[]>([]);
-  const prevNamesKey = useRef("");
+  // El orden vive arriba (`exerciseOrderByTemplate`, persistido y sincronizado) y llega
+  // ya aplicado en `loadExercisesForForm`; aquí no se duplica en estado local para que
+  // lo que ves y lo que se guarda no puedan desincronizarse.
+  const orderedNames = loadExercisesForForm.map((e) => e.name);
   // A card is only `draggable` while its handle is pressed, so text stays selectable
   // in the load inputs the rest of the time.
   const [armedName, setArmedName] = useState<string | null>(null);
@@ -83,54 +85,51 @@ export function TrainingFormCard({
   const stackRef = useRef<HTMLDivElement>(null);
   const touchStateRef = useRef<{ name: string; startY: number; active: boolean } | null>(null);
 
-  useEffect(() => {
-    const incoming = loadExercisesForForm.map((e) => e.name);
-    const key = incoming.join("\0");
-    if (key === prevNamesKey.current) return;
-    prevNamesKey.current = key;
-    setOrderedNames((prev) => {
-      const incomingSet = new Set(incoming);
-      const kept = prev.filter((n) => incomingSet.has(n));
-      const keptSet = new Set(kept);
-      const added = incoming.filter((n) => !keptSet.has(n));
-      return [...kept, ...added];
-    });
-  }, [loadExercisesForForm]);
-
-  const orderedExercises = orderedNames.map((n) => ({ name: n }));
-
-  function nameFromPoint(x: number, y: number): { name: string; half: "top" | "bottom" } | null {
+  /**
+   * Tarjeta bajo el puntero. Si el punto cae en el hueco entre tarjetas (o por encima
+   * de la primera / debajo de la última) devuelve la más cercana, para poder soltar
+   * también en los extremos de la lista.
+   */
+  function nameFromPoint(y: number): { name: string; half: "top" | "bottom" } | null {
     const stack = stackRef.current;
     if (!stack) return null;
-    const cards = stack.querySelectorAll<HTMLElement>("[data-exercise]");
+    const cards = Array.from(stack.querySelectorAll<HTMLElement>("[data-exercise]"));
+    let nearest: { name: string; half: "top" | "bottom" } | null = null;
+    let nearestDistance = Infinity;
     for (const card of cards) {
       const rect = card.getBoundingClientRect();
+      const name = card.dataset.exercise!;
       if (y >= rect.top && y <= rect.bottom) {
-        return {
-          name: card.dataset.exercise!,
-          half: y < rect.top + rect.height / 2 ? "top" : "bottom",
-        };
+        return { name, half: y < rect.top + rect.height / 2 ? "top" : "bottom" };
+      }
+      const distance = y < rect.top ? rect.top - y : y - rect.bottom;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = { name, half: y < rect.top ? "top" : "bottom" };
       }
     }
-    return null;
+    return nearest;
   }
 
-  const commitDrop = useCallback(
-    (src: string, dst: string, half: "top" | "bottom") => {
-      if (src === dst) return;
-      setOrderedNames((prev) => {
-        const srcIdx = prev.indexOf(src);
-        const dstIdx = prev.indexOf(dst);
-        if (srcIdx < 0 || dstIdx < 0) return prev;
-        const next = prev.filter((n) => n !== src);
-        const insertAt = half === "top" ? next.indexOf(dst) : next.indexOf(dst) + 1;
-        next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
-        onReorder(next);
-        return next;
-      });
-    },
-    [onReorder],
-  );
+  function commitDrop(src: string, dst: string, half: "top" | "bottom") {
+    if (src === dst) return;
+    if (orderedNames.indexOf(src) < 0 || orderedNames.indexOf(dst) < 0) return;
+    const next = orderedNames.filter((n) => n !== src);
+    const insertAt = half === "top" ? next.indexOf(dst) : next.indexOf(dst) + 1;
+    next.splice(insertAt < 0 ? next.length : insertAt, 0, src);
+    onReorder(next);
+  }
+
+  /** Alternativa fiable al arrastre: mueve un ejercicio una posición arriba/abajo. */
+  function moveExerciseBy(name: string, delta: -1 | 1) {
+    const from = orderedNames.indexOf(name);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= orderedNames.length) return;
+    const next = [...orderedNames];
+    next[from] = next[to];
+    next[to] = name;
+    onReorder(next);
+  }
 
   // ── Desktop drag events (delegated on stack container) ─────────────────
   // Arm `draggable` on the pressed card so the native dragstart can fire (HTML5
@@ -145,17 +144,19 @@ export function TrainingFormCard({
     setArmedName(card?.dataset.exercise ?? null);
   }
   function onStackDragStart(e: React.DragEvent) {
-    const handle = (e.target as HTMLElement).closest("[data-drag-handle]");
-    if (!handle) { e.preventDefault(); return; }
+    // `dragstart` se dispara en la tarjeta con draggable="true", no en el tirador, así
+    // que la única señal fiable de que el arrastre nació del tirador es `armedName`.
     const card = (e.target as HTMLElement).closest<HTMLElement>("[data-exercise]");
-    if (!card) return;
+    if (!card || card.dataset.exercise !== armedName) { e.preventDefault(); return; }
     e.dataTransfer.effectAllowed = "move";
+    // Firefox no inicia el arrastre si no hay datos en el dataTransfer.
+    e.dataTransfer.setData("text/plain", card.dataset.exercise!);
     setDraggingName(card.dataset.exercise!);
   }
   function onStackDragOver(e: React.DragEvent) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    const hit = nameFromPoint(e.clientX, e.clientY);
+    const hit = nameFromPoint(e.clientY);
     if (!hit || !draggingName || hit.name === draggingName) {
       if (dragOverName) setDragOverName(null);
       return;
@@ -199,7 +200,7 @@ export function TrainingFormCard({
       setDraggingName(ts.name);
     }
     e.preventDefault();
-    const hit = nameFromPoint(t.clientX, t.clientY);
+    const hit = nameFromPoint(t.clientY);
     if (!hit || hit.name === ts.name) {
       if (dragOverName) setDragOverName(null);
       return;
@@ -277,7 +278,8 @@ export function TrainingFormCard({
           <p className="muted mb-3 text-xs">
             Cada ejercicio empieza con los kg y reps de tu última sesión; cámbialos si hace falta.
             Activa &quot;Detalle por serie&quot; para pesos distintos. Puedes añadir o quitar series
-            (hasta {MAX_LOAD_SETS}).
+            (hasta {MAX_LOAD_SETS}). Para reordenarlos, arrastra desde ⠿ o usa las flechas ↑ ↓; el
+            orden se guarda para esta sesión.
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-2">
             <label className="field min-w-[12rem] flex-1">
@@ -348,27 +350,29 @@ export function TrainingFormCard({
             onTouchEnd={onStackTouchEnd}
             onTouchCancel={onStackTouchEnd}
           >
-            {orderedExercises.map((exercise) => {
-              const loads = latestLoadsForTemplate.get(exercise.name);
+            {orderedNames.map((name, index) => {
+              const loads = latestLoadsForTemplate.get(name);
               return (
                 <ExerciseLoadInput
-                  key={exercise.name}
-                  exerciseName={exercise.name}
-                  sets={getFormSetsForExercise(exercise.name)}
-                  isDetail={isLoadDetail(exercise.name)}
-                  isDragging={draggingName === exercise.name}
-                  draggable={armedName === exercise.name}
-                  dragIndicator={
-                    dragOverName === exercise.name ? dragOverHalf : null
-                  }
+                  key={name}
+                  exerciseName={name}
+                  sets={getFormSetsForExercise(name)}
+                  isDetail={isLoadDetail(name)}
+                  isDragging={draggingName === name}
+                  draggable={armedName === name}
+                  dragIndicator={dragOverName === name ? dragOverHalf : null}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < orderedNames.length - 1}
+                  onMoveUp={() => moveExerciseBy(name, -1)}
+                  onMoveDown={() => moveExerciseBy(name, 1)}
                   lastSessionKg={loads?.lastKg}
                   maxKg={loads?.maxKg}
-                  onRemove={() => onRemoveExercise(exercise.name)}
-                  onToggleDetail={(want) => setLoadDetailMode(exercise.name, want)}
-                  onUpdateSet={(i, field, value) => updateSetLoad(exercise.name, i, field, value)}
-                  onUpdateUniform={(field, value) => updateUniformLoad(exercise.name, field, value)}
-                  onAddSet={() => addSetForExercise(exercise.name)}
-                  onRemoveSet={() => removeLastSetForExercise(exercise.name)}
+                  onRemove={() => onRemoveExercise(name)}
+                  onToggleDetail={(want) => setLoadDetailMode(name, want)}
+                  onUpdateSet={(i, field, value) => updateSetLoad(name, i, field, value)}
+                  onUpdateUniform={(field, value) => updateUniformLoad(name, field, value)}
+                  onAddSet={() => addSetForExercise(name)}
+                  onRemoveSet={() => removeLastSetForExercise(name)}
                 />
               );
             })}

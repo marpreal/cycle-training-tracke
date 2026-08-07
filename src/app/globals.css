@@ -458,6 +458,44 @@ textarea {
   }
 }
 
+/* Alternativa al arrastre: siempre funciona, también en móvil. */
+.reorder-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.reorder-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.reorder-btn:hover:not(:disabled) {
+  color: var(--foreground);
+  border-color: var(--accent);
+}
+.reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+@media (pointer: coarse) {
+  .reorder-btn {
+    width: 1.9rem;
+    height: 1.4rem;
+    font-size: 0.85rem;
+  }
+}
+
 .load-exercise-card[draggable] {
   position: relative;
   transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;

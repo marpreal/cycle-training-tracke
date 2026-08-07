@@ -2,7 +2,13 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { formatDate, getCurrentCycleDay, getNextPeriodDate, getPhaseInfo } from "@/lib/cycle";
+import {
+  buildPeriodDelayReport,
+  formatDate,
+  getCurrentCycleDay,
+  getNextPeriodDate,
+  getPhaseInfo,
+} from "@/lib/cycle";
 import {
   ACTIVITY_FACTORS,
   bmrFemaleKg,
@@ -98,6 +104,9 @@ import { StepsCard } from "@/components/entreno/StepsCard";
 import { TemplatesCard } from "@/components/entreno/TemplatesCard";
 import { PlanCard } from "@/components/entreno/PlanCard";
 import { EspaldaView } from "@/components/EspaldaView";
+import { PeriodDelaysCard } from "@/components/regla/PeriodDelaysCard";
+import { WeeklyConsistencyCard } from "@/components/entreno/WeeklyConsistencyCard";
+import { computeWeeklyConsistency } from "@/lib/trainingWeeks";
 
 const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
@@ -761,6 +770,17 @@ export default function Home() {
     return { count: closed.length, avgDuration, minDuration, maxDuration, avgCycle, minCycle, maxCycle, isRegular };
   }, [sortedPeriodLog]);
 
+  const periodDelayReport = useMemo(
+    () =>
+      buildPeriodDelayReport(
+        periodLog,
+        settings.cycleLength,
+        settings.isPeriodOngoing,
+        settings.lastPeriodStart,
+      ),
+    [periodLog, settings.cycleLength, settings.isPeriodOngoing, settings.lastPeriodStart],
+  );
+
   const trainingStats = useMemo(() => {
     if (!hasHydrated) return { week: 0, month: 0, year: 0, volumeWeek: 0, volumeMonth: 0, volumeYear: 0 };
     const now = new Date();
@@ -782,6 +802,11 @@ export default function Home() {
     }
     return { week, month, year, volumeWeek, volumeMonth, volumeYear };
   }, [trainingLog, hasHydrated]);
+
+  const weeklyConsistency = useMemo(
+    () => computeWeeklyConsistency(hasHydrated ? trainingLog : []),
+    [trainingLog, hasHydrated],
+  );
 
   const stepsStats = useMemo(() => {
     if (!hasHydrated) return { week: 0, month: 0, year: 0 };
@@ -926,7 +951,27 @@ export default function Home() {
   }
 
   function handleExerciseReorder(names: string[]) {
-    setExerciseOrderByTemplate((prev) => ({ ...prev, [form.newLogTemplate]: names }));
+    setExerciseOrderByTemplate((prev) => {
+      const saved = prev[form.newLogTemplate] ?? [];
+      const next = [...names];
+      // `names` sólo trae los ejercicios visibles. Los que están guardados pero ahora
+      // ocultos se reinsertan detrás de su vecino anterior, para que no pierdan su
+      // sitio si más adelante se restauran.
+      for (let i = 0; i < saved.length; i++) {
+        const name = saved[i];
+        if (next.includes(name)) continue;
+        let anchor = -1;
+        for (let j = i - 1; j >= 0; j--) {
+          const idx = next.indexOf(saved[j]);
+          if (idx >= 0) {
+            anchor = idx;
+            break;
+          }
+        }
+        next.splice(anchor + 1, 0, name);
+      }
+      return { ...prev, [form.newLogTemplate]: next };
+    });
   }
 
   function handleRemoveExercise(name: string) {
@@ -1385,6 +1430,13 @@ export default function Home() {
         </article>
       </section>
 
+      {/* ── REGLA: Retrasos ─────────────────────────────────────────────────── */}
+      {hasHydrated ? (
+        <section className={`${activeView === "regla" ? "" : "hidden"}`}>
+          <PeriodDelaysCard report={periodDelayReport} cycleLength={settings.cycleLength} />
+        </section>
+      ) : null}
+
       {/* ── REGLA: Estadísticas ─────────────────────────────────────────────── */}
       {hasHydrated && periodStats ? (
         <section className={`${activeView === "regla" ? "" : "hidden"}`}>
@@ -1691,7 +1743,12 @@ export default function Home() {
 
       {/* Stats bar — always visible on desktop, only on form/history blade on mobile */}
       <section className={activeView !== "entreno" ? "hidden" : entrenoBlade === "more" ? "hidden lg:block" : ""}>
-        <TrainingMetricsBar hasHydrated={hasHydrated} stats={trainingStats} personalRecords={personalRecords} />
+        <TrainingMetricsBar
+          hasHydrated={hasHydrated}
+          stats={trainingStats}
+          personalRecords={personalRecords}
+          consistency={weeklyConsistency}
+        />
       </section>
 
       {/* Training form + history */}
@@ -1742,7 +1799,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Steps, progression, export — only in "more" blade on mobile */}
+      {/* Weekly consistency, steps, progression, export — only in "more" blade on mobile */}
+      <section className={activeView !== "entreno" ? "hidden" : entrenoBlade !== "more" ? "hidden lg:block" : ""}>
+        <WeeklyConsistencyCard consistency={weeklyConsistency} hasHydrated={hasHydrated} />
+      </section>
+
       <section className={activeView !== "entreno" ? "hidden" : entrenoBlade !== "more" ? "hidden lg:block" : ""}>
         <StepsCard
           steps={steps}

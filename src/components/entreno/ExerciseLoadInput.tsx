@@ -10,6 +10,10 @@ interface ExerciseLoadInputProps {
   /** Only true while its drag handle is pressed, so inputs stay selectable otherwise. */
   draggable: boolean;
   dragIndicator: "top" | "bottom" | null;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   lastSessionKg: number | undefined;
   maxKg: number | undefined;
   onRemove: () => void;
@@ -27,6 +31,10 @@ export function ExerciseLoadInput({
   isDragging,
   draggable,
   dragIndicator,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
   lastSessionKg,
   maxKg,
   onRemove,
@@ -48,6 +56,28 @@ export function ExerciseLoadInput({
       <div className="load-exercise-card-head">
         <div className="flex items-center gap-1.5">
           <span className="drag-handle" data-drag-handle aria-label="Arrastrar para reordenar">⠿</span>
+          <span className="reorder-buttons">
+            <button
+              type="button"
+              className="reorder-btn"
+              disabled={!canMoveUp}
+              onClick={onMoveUp}
+              aria-label={`Subir ${exerciseName}`}
+              title="Subir"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              className="reorder-btn"
+              disabled={!canMoveDown}
+              onClick={onMoveDown}
+              aria-label={`Bajar ${exerciseName}`}
+              title="Bajar"
+            >
+              ↓
+            </button>
+          </span>
           <span className="load-exercise-name">{exerciseName}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">

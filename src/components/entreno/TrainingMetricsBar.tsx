@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { WeeklyConsistency } from "@/lib/trainingWeeks";
 
 interface Stats {
   week: number;
@@ -44,10 +45,12 @@ export function TrainingMetricsBar({
   hasHydrated,
   stats,
   personalRecords,
+  consistency,
 }: {
   hasHydrated: boolean;
   stats: Stats;
   personalRecords: PersonalRecord[];
+  consistency: WeeklyConsistency;
 }) {
   const [showPRs, setShowPRs] = useState(false);
   const prsThisYear = personalRecords.filter((pr) => pr.isThisYear);
@@ -80,6 +83,16 @@ export function TrainingMetricsBar({
           ) : null}
         </article>
       </div>
+
+      {hasHydrated && !consistency.isEmpty ? (
+        <p className="muted text-xs">
+          Desde que empezaste a registrar: <strong>{consistency.weeksTrained}</strong>{" "}
+          {consistency.weeksTrained === 1 ? "semana entrenada" : "semanas entrenadas"} y{" "}
+          <strong>{consistency.weeksMissed}</strong>{" "}
+          {consistency.weeksMissed === 1 ? "semana fallada" : "semanas falladas"} (
+          {consistency.percentTrained}% de constancia).
+        </p>
+      ) : null}
 
       {hasHydrated && personalRecords.length > 0 ? (
         <div>
