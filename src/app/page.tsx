@@ -925,17 +925,35 @@ export default function Home() {
   }
 
   // ── Handlers: custom exercises ────────────────────────────────────────────
+  /** Quita un nombre de la lista de ocultos de la sesión activa. */
+  function unexcludeExercise(name: string) {
+    setExcludedPlanExercises((prev) => {
+      const list = (prev[form.newLogTemplate] ?? []).filter((x) => x !== name);
+      const next = { ...prev };
+      if (list.length === 0) delete next[form.newLogTemplate];
+      else next[form.newLogTemplate] = list;
+      return next;
+    });
+  }
+
   function addCustomExerciseToTemplate() {
     const name = form.newCustomExerciseName.trim();
     if (!name || !selectedTemplate) return;
+    // Si el nombre coincide con uno oculto (del plan o propio), volver a mostrarlo
+    // en vez de crear un duplicado.
+    unexcludeExercise(name);
     setCustomExercisesByTemplate((prev) => {
       const list = prev[form.newLogTemplate] ?? [];
-      if (list.includes(name)) return prev;
+      const isPlanExercise = getLoadTrackedExercisesWithCustom(selectedTemplate, []).some(
+        (e) => e.name === name,
+      );
+      if (isPlanExercise || list.includes(name)) return prev;
       return { ...prev, [form.newLogTemplate]: [...list, name] };
     });
     form.setNewCustomExerciseName("");
   }
 
+  /** Borrado definitivo de un ejercicio propio: desaparece también del backlog. */
   function removeCustomExercise(name: string) {
     setCustomExercisesByTemplate((prev) => {
       const list = prev[form.newLogTemplate] ?? [];
@@ -948,6 +966,7 @@ export default function Home() {
       }
       return next;
     });
+    unexcludeExercise(name);
   }
 
   function handleExerciseReorder(names: string[]) {
@@ -974,17 +993,16 @@ export default function Home() {
     });
   }
 
+  /**
+   * Quitar un ejercicio de la sesión nunca lo borra: pasa al backlog de ocultos
+   * (sean del plan o propios) para poder recuperarlo cualquier otro día.
+   */
   function handleRemoveExercise(name: string) {
-    const isCustom = (customExercisesByTemplate[form.newLogTemplate] ?? []).includes(name);
-    if (isCustom) {
-      removeCustomExercise(name);
-    } else {
-      setExcludedPlanExercises((prev) => {
-        const list = prev[form.newLogTemplate] ?? [];
-        if (list.includes(name)) return prev;
-        return { ...prev, [form.newLogTemplate]: [...list, name] };
-      });
-    }
+    setExcludedPlanExercises((prev) => {
+      const list = prev[form.newLogTemplate] ?? [];
+      if (list.includes(name)) return prev;
+      return { ...prev, [form.newLogTemplate]: [...list, name] };
+    });
   }
 
   // ── Handlers: period / flow ───────────────────────────────────────────────
@@ -1765,15 +1783,7 @@ export default function Home() {
             onAddCustomExercise={addCustomExerciseToTemplate}
             onRemoveCustomExercise={removeCustomExercise}
             onRemoveExercise={handleRemoveExercise}
-            onRestorePlanExercise={(name) =>
-              setExcludedPlanExercises((prev) => {
-                const list = (prev[form.newLogTemplate] ?? []).filter((x) => x !== name);
-                const next = { ...prev };
-                if (list.length === 0) delete next[form.newLogTemplate];
-                else next[form.newLogTemplate] = list;
-                return next;
-              })
-            }
+            onRestorePlanExercise={unexcludeExercise}
             onReorder={handleExerciseReorder}
           />
         </div>

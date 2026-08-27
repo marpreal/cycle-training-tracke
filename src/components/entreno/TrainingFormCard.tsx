@@ -76,6 +76,11 @@ export function TrainingFormCard({
   // ya aplicado en `loadExercisesForForm`; aquí no se duplica en estado local para que
   // lo que ves y lo que se guarda no puedan desincronizarse.
   const orderedNames = loadExercisesForForm.map((e) => e.name);
+  // Los ejercicios propios que están quitados se listan en el backlog de abajo,
+  // no como etiqueta activa, para no mostrarlos dos veces.
+  const activeCustomExercises = customExercisesForTemplate.filter(
+    (name) => !excludedPlanExercisesForTemplate.includes(name),
+  );
   // A card is only `draggable` while its handle is pressed, so text stays selectable
   // in the load inputs the rest of the time.
   const [armedName, setArmedName] = useState<string | null>(null);
@@ -272,70 +277,95 @@ export function TrainingFormCard({
         </label>
       </div>
 
-      {loadExercisesForForm.length > 0 ? (
-        <div className="mt-4">
-          <p className="block-title">Cargas por ejercicio</p>
+      <div className="mt-4">
+        <p className="block-title">Cargas por ejercicio</p>
+        {loadExercisesForForm.length > 0 ? (
           <p className="muted mb-3 text-xs">
             Cada ejercicio empieza con los kg y reps de tu última sesión; cámbialos si hace falta.
             Activa &quot;Detalle por serie&quot; para pesos distintos. Puedes añadir o quitar series
             (hasta {MAX_LOAD_SETS}). Para reordenarlos, arrastra desde ⠿ o usa las flechas ↑ ↓; el
             orden se guarda para esta sesión.
           </p>
-          <div className="mb-3 flex flex-wrap items-end gap-2">
-            <label className="field min-w-[12rem] flex-1">
-              <span>Añadir ejercicio a esta categoría</span>
-              <input
-                type="text"
-                value={newCustomExerciseName}
-                onChange={(e) => setNewCustomExerciseName(e.target.value)}
-                placeholder="Nombre del ejercicio"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onAddCustomExercise();
-                  }
-                }}
-              />
-            </label>
-            <button
-              type="button"
-              className="action-button action-end"
-              onClick={onAddCustomExercise}
-            >
-              Añadir ejercicio
-            </button>
+        ) : (
+          <p className="muted mb-3 text-xs">
+            No hay ejercicios en esta sesión. Añade uno nuevo abajo o recupera cualquiera de los
+            que quitaste tocando el ➕ de su etiqueta.
+          </p>
+        )}
+        <div className="mb-3 flex flex-wrap items-end gap-2">
+          <label className="field min-w-[12rem] flex-1">
+            <span>Añadir ejercicio a esta categoría</span>
+            <input
+              type="text"
+              value={newCustomExerciseName}
+              onChange={(e) => setNewCustomExerciseName(e.target.value)}
+              placeholder="Nombre del ejercicio"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAddCustomExercise();
+                }
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="action-button action-end"
+            onClick={onAddCustomExercise}
+          >
+            Añadir ejercicio
+          </button>
+        </div>
+        {activeCustomExercises.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-[var(--muted)]">Ejercicios propios:</span>
+            {activeCustomExercises.map((name) => (
+              <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                {name}
+                <button
+                  type="button"
+                  aria-label={`Eliminar ejercicio ${name}`}
+                  className="ml-0.5 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-100"
+                  title="Eliminar definitivamente"
+                  onClick={() => onRemoveCustomExercise(name)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
           </div>
-          {(customExercisesForTemplate.length > 0 || excludedPlanExercisesForTemplate.length > 0) ? (
-            <div className="mb-3 flex flex-wrap gap-2">
-              {customExercisesForTemplate.map((name) => (
-                <span key={name} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                  {name}
+        ) : null}
+        {excludedPlanExercisesForTemplate.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-[var(--muted)]">Quitados (toca ➕ para recuperar):</span>
+            {excludedPlanExercisesForTemplate.map((name) => (
+              <span key={name} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <span className="line-through">{name}</span>
+                <button
+                  type="button"
+                  aria-label={`Recuperar ejercicio ${name}`}
+                  className="ml-0.5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  title="Recuperar ejercicio"
+                  onClick={() => onRestorePlanExercise(name)}
+                >
+                  ➕
+                </button>
+                {customExercisesForTemplate.includes(name) ? (
                   <button
                     type="button"
-                    aria-label={`Eliminar ejercicio ${name}`}
-                    className="ml-0.5 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-100"
+                    aria-label={`Eliminar definitivamente ${name}`}
+                    className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                    title="Eliminar definitivamente"
                     onClick={() => onRemoveCustomExercise(name)}
                   >
                     ×
                   </button>
-                </span>
-              ))}
-              {excludedPlanExercisesForTemplate.map((name) => (
-                <span key={name} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 line-through dark:bg-gray-800 dark:text-gray-400">
-                  {name}
-                  <button
-                    type="button"
-                    aria-label={`Restaurar ejercicio ${name}`}
-                    className="ml-0.5 no-underline text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-                    title="Restaurar ejercicio"
-                    onClick={() => onRestorePlanExercise(name)}
-                  >
-                    +
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : null}
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {orderedNames.length > 0 ? (
           <div
             className="load-exercise-stack"
             ref={stackRef}
@@ -377,8 +407,8 @@ export function TrainingFormCard({
               );
             })}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="primary-button" type="button" onClick={onSave}>
