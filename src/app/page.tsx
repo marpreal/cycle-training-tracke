@@ -1205,9 +1205,10 @@ export default function Home() {
   // ── Handlers: dieta ───────────────────────────────────────────────────────
   function saveMealEntry() {
     if (meals.mealDateInput === DEFAULT_ISO_DATE) return;
+    // La descripcion es opcional: se puede apuntar solo las kcal.
     const name = meals.mealNameInput.trim();
     const kcal = meals.parseKcalInput(meals.mealKcalInput);
-    if (!name || kcal == null) return;
+    if (kcal == null) return;
     const proteinG = meals.parseProteinInput(meals.mealProteinInput);
     if (meals.editingMealId) {
       setMealsLog((cur) =>

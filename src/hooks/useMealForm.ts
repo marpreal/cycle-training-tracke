@@ -33,10 +33,9 @@ export function useMealForm() {
     return n == null ? null : Math.round(n);
   }
 
+  /** La descripcion es opcional: basta con la fecha y las kcal. */
   const canSaveMeal =
-    mealDateInput !== DEFAULT_ISO_DATE &&
-    mealNameInput.trim().length > 0 &&
-    parseKcalInput(mealKcalInput) != null;
+    mealDateInput !== DEFAULT_ISO_DATE && parseKcalInput(mealKcalInput) != null;
 
   function startEditMeal(entry: MealRecord) {
     setEditingMealId(entry.id);

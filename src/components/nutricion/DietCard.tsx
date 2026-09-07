@@ -67,8 +67,9 @@ export function DietCard({
     <article className="card">
       <h2 className="section-title">Dieta: comidas y calorías</h2>
       <p className="muted mb-3 text-sm">
-        Apunta lo que comes con sus kcal aproximadas. Los totales se comparan con tu objetivo
-        calórico del perfil ({formatKcal(targetCalories)}/día).
+        Apunta las kcal de cada comida; describir la comida es opcional, así que puedes sumar
+        calorías sueltas sin escribir qué era. Los totales se comparan con tu objetivo calórico del
+        perfil ({formatKcal(targetCalories)}/día).
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -89,15 +90,6 @@ export function DietCard({
             ))}
           </select>
         </label>
-        <label className="field sm:col-span-2">
-          <span>Qué has comido</span>
-          <input
-            type="text"
-            value={meals.mealNameInput}
-            onChange={(e) => meals.setMealNameInput(e.target.value)}
-            placeholder="ej. Yogur con avena y plátano"
-          />
-        </label>
         <label className="field">
           <span>Calorías (kcal)</span>
           <input
@@ -116,6 +108,15 @@ export function DietCard({
             value={meals.mealProteinInput}
             onChange={(e) => meals.setMealProteinInput(e.target.value)}
             placeholder="ej. 22"
+          />
+        </label>
+        <label className="field sm:col-span-2">
+          <span>Qué has comido · opcional</span>
+          <input
+            type="text"
+            value={meals.mealNameInput}
+            onChange={(e) => meals.setMealNameInput(e.target.value)}
+            placeholder="ej. Yogur con avena y plátano (o déjalo vacío)"
           />
         </label>
       </div>
@@ -139,9 +140,7 @@ export function DietCard({
         <p className="mt-2 text-xs text-red-500">
           {meals.mealDateInput === DEFAULT_ISO_DATE
             ? "Selecciona una fecha válida."
-            : meals.mealNameInput.trim() === ""
-              ? "Escribe qué has comido."
-              : "Introduce las kcal (entre 0 y 5.000)."}
+            : "Introduce las kcal (entre 0 y 5.000)."}
         </p>
       ) : null}
 
@@ -220,7 +219,8 @@ export function DietCard({
                         style={{ borderColor: "var(--border)" }}
                       >
                         <span className="min-w-0">
-                          <span className="muted">{MEAL_LABELS[entry.meal]}</span> · {entry.name}
+                          <span className="muted">{MEAL_LABELS[entry.meal]}</span>
+                          {entry.name ? <> · {entry.name}</> : null}
                           <span className="muted">
                             {" "}
                             · {formatKcal(entry.kcal)}
