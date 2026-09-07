@@ -54,6 +54,39 @@ export type StepsRecord = {
   steps: number;
 };
 
+export type MealType = "desayuno" | "media-manana" | "comida" | "merienda" | "cena" | "otro";
+
+/** Orden en que se muestran las comidas dentro de un día. */
+export const MEAL_TYPES: MealType[] = [
+  "desayuno",
+  "media-manana",
+  "comida",
+  "merienda",
+  "cena",
+  "otro",
+];
+
+export const MEAL_LABELS: Record<MealType, string> = {
+  desayuno: "Desayuno",
+  "media-manana": "Media mañana",
+  comida: "Comida",
+  merienda: "Merienda",
+  cena: "Cena",
+  otro: "Otro / snack",
+};
+
+/** Una comida del diario: qué comiste ese día y sus kcal (orientativas). */
+export type MealRecord = {
+  id: string;
+  date: string;
+  meal: MealType;
+  /** Qué comiste, en texto libre. */
+  name: string;
+  kcal: number;
+  /** Proteína aproximada (g); opcional. */
+  proteinG?: number | null;
+};
+
 export type UserProfile = {
   age: number;
   heightCm: number;
@@ -84,6 +117,8 @@ export const PERIOD_LOG_KEY = "period-log-v1";
 export const USER_PROFILE_KEY = "user-profile-v1";
 export const BODY_MEASUREMENTS_KEY = "body-measurements-v1";
 export const STEPS_LOG_KEY = "steps-log-v1";
+/** Diario de comidas (JSON). */
+export const MEALS_LOG_KEY = "meals-log-v1";
 export const PROGRESSION_HORIZON_KEY = "progression-horizon-weeks-v1";
 /** Nombres de ejercicio extra por id de plantilla (JSON). */
 export const CUSTOM_EXERCISES_KEY = "custom-exercises-by-template-v1";

@@ -40,6 +40,7 @@ import type {
   BodyMeasurementRecord,
   FlowLevel,
   PeriodRecord,
+  MealRecord,
   PeriodSettings,
   StepsRecord,
   TrainingRecord,
@@ -51,6 +52,7 @@ import {
   defaultProfile,
   defaultSettings,
   DEFAULT_ISO_DATE,
+  MEALS_LOG_KEY,
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
   PROGRESSION_HORIZON_KEY,
@@ -70,6 +72,7 @@ import {
   loadCustomExercisesByTemplate,
   loadExcludedPlanExercisesByTemplate,
   loadExerciseOrderByTemplate,
+  loadMealsLog,
   loadProgressionHorizonWeeks,
   loadSettings,
   loadStepsLog,
@@ -94,6 +97,7 @@ import { fetchRemotePlans, fetchRemoteSnapshot, pushRemotePlans, pushRemoteSnaps
 import { useTrainingForm, type FormSetsMap, type DetailMap } from "@/hooks/useTrainingForm";
 import { useSessionHistory } from "@/hooks/useSessionHistory";
 import { useStepsForm } from "@/hooks/useStepsForm";
+import { useMealForm } from "@/hooks/useMealForm";
 // Components
 import { TrainingMetricsBar, type PersonalRecord } from "@/components/entreno/TrainingMetricsBar";
 import { TrainingFormCard } from "@/components/entreno/TrainingFormCard";
@@ -107,6 +111,8 @@ import { EspaldaView } from "@/components/EspaldaView";
 import { PeriodDelaysCard } from "@/components/regla/PeriodDelaysCard";
 import { WeeklyConsistencyCard } from "@/components/entreno/WeeklyConsistencyCard";
 import { computeWeeklyConsistency } from "@/lib/trainingWeeks";
+import { DietCard } from "@/components/nutricion/DietCard";
+import { computeDietStats, groupMealsByDate } from "@/lib/diet";
 
 const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
@@ -132,6 +138,7 @@ export default function Home() {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [measurementLog, setMeasurementLog] = useState<BodyMeasurementRecord[]>([]);
   const [stepsLog, setStepsLog] = useState<StepsRecord[]>([]);
+  const [mealsLog, setMealsLog] = useState<MealRecord[]>([]);
   const [progressionHorizonWeeks, setProgressionHorizonWeeks] = useState(6);
   const [customExercisesByTemplate, setCustomExercisesByTemplate] = useState<
     Record<string, string[]>
@@ -184,6 +191,7 @@ export default function Home() {
   const form = useTrainingForm();
   const sessionHistory = useSessionHistory(trainingLog);
   const steps = useStepsForm({ hasHydrated, sessionStatus });
+  const meals = useMealForm();
 
   // ── Active view persistence ───────────────────────────────────────────────
   const setActiveView = (v: ActiveView) => {
@@ -228,10 +236,12 @@ export default function Home() {
       setProfileWeightDraft(String(prof.weightKg));
       setMeasurementLog(loadBodyMeasurements());
       setStepsLog(loadStepsLog());
+      setMealsLog(loadMealsLog());
       setPeriodEndInput(today);
       setFlowDateInput(today);
       form.initDate(today);
       steps.initDate(today);
+      meals.initDate(today);
       setMeasurementDate(today);
       // Plans live in IndexedDB; migrate from localStorage on first load
       void (async () => {
@@ -293,6 +303,11 @@ export default function Home() {
     if (!hasHydrated) return;
     try { localStorage.setItem(STEPS_LOG_KEY, JSON.stringify(stepsLog)); } catch { /* quota */ }
   }, [stepsLog, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try { localStorage.setItem(MEALS_LOG_KEY, JSON.stringify(mealsLog)); } catch { /* quota */ }
+  }, [mealsLog, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -396,6 +411,7 @@ export default function Home() {
       setProfileWeightDraft(String(snapshot.profile.weightKg));
       setMeasurementLog(snapshot.measurementLog);
       setStepsLog(snapshot.stepsLog ?? []);
+      setMealsLog(snapshot.mealsLog ?? []);
       if (snapshot.preferences?.progressionHorizonWeeks) {
         setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
       }
@@ -423,7 +439,7 @@ export default function Home() {
     if (!hasHydrated) return;
     const pack = {
       settings, trainingLog, periodLog, profile,
-      measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate,
+      measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate,
       exerciseOrderByTemplate, excludedPlanExercises,
     };
     const next = JSON.stringify(pack);
@@ -440,7 +456,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -450,7 +466,7 @@ export default function Home() {
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;
       const snap = buildSnapshot({
-        settings, trainingLog, periodLog, profile, measurementLog, stepsLog,
+        settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog,
         preferences: {
           progressionHorizonWeeks, customExercisesByTemplate,
           exerciseOrderByTemplate, excludedPlanExercises,
@@ -467,7 +483,7 @@ export default function Home() {
       })();
     }, 1200);
     return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
-  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   // ── Remote sync: plans pull (dedicated endpoint) ──────────────────────────
   useEffect(() => {
@@ -827,6 +843,16 @@ export default function Home() {
     return { week, month, year };
   }, [stepsLog, hasHydrated]);
 
+  const dietDays = useMemo(
+    () => groupMealsByDate(hasHydrated ? mealsLog : []),
+    [mealsLog, hasHydrated],
+  );
+
+  const dietStats = useMemo(
+    () => computeDietStats(hasHydrated ? mealsLog : []),
+    [mealsLog, hasHydrated],
+  );
+
   const sortedStepsLog = useMemo(
     () => [...stepsLog].sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date))),
     [stepsLog],
@@ -1174,6 +1200,42 @@ export default function Home() {
   function removeStepsEntry(id: string) {
     setStepsLog((cur) => cur.filter((item) => item.id !== id));
     if (steps.editingStepId === id) steps.cancelEditSteps();
+  }
+
+  // ── Handlers: dieta ───────────────────────────────────────────────────────
+  function saveMealEntry() {
+    if (meals.mealDateInput === DEFAULT_ISO_DATE) return;
+    const name = meals.mealNameInput.trim();
+    const kcal = meals.parseKcalInput(meals.mealKcalInput);
+    if (!name || kcal == null) return;
+    const proteinG = meals.parseProteinInput(meals.mealProteinInput);
+    if (meals.editingMealId) {
+      setMealsLog((cur) =>
+        cur.map((item) =>
+          item.id === meals.editingMealId
+            ? { ...item, date: meals.mealDateInput, meal: meals.mealTypeInput, name, kcal, proteinG }
+            : item,
+        ),
+      );
+    } else {
+      setMealsLog((cur) => [
+        {
+          id: crypto.randomUUID(),
+          date: meals.mealDateInput,
+          meal: meals.mealTypeInput,
+          name,
+          kcal,
+          proteinG,
+        },
+        ...cur,
+      ]);
+    }
+    meals.resetMealFields();
+  }
+
+  function removeMealEntry(id: string) {
+    setMealsLog((cur) => cur.filter((item) => item.id !== id));
+    if (meals.editingMealId === id) meals.resetMealFields();
   }
 
   function commitProfileWeightFromDraft() {
@@ -1845,6 +1907,20 @@ export default function Home() {
           onExportMonthChange={setExportMonth}
         />
         <TemplatesCard />
+      </section>
+
+      {/* ── Dieta: diario de comidas ─────────────────────────────────────────── */}
+      <section className={activeView === "nutricion" ? "" : "hidden"}>
+        <DietCard
+          meals={meals}
+          stats={dietStats}
+          days={dietDays}
+          targetCalories={targetCalories}
+          proteinTarget={proteinDay.target}
+          hasHydrated={hasHydrated}
+          onSave={saveMealEntry}
+          onRemove={removeMealEntry}
+        />
       </section>
 
       {/* ── Nutrition profile ─────────────────────────────────────────────────── */}

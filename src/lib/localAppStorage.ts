@@ -8,6 +8,9 @@ import {
   defaultSettings,
   DEFAULT_ISO_DATE,
   type BodyMeasurementRecord,
+  MEAL_LABELS,
+  MEALS_LOG_KEY,
+  type MealRecord,
   type PeriodRecord,
   type PeriodSettings,
   PERIOD_LOG_KEY,
@@ -179,6 +182,31 @@ export function loadStepsLog(): StepsRecord[] {
         typeof item.steps === "number" &&
         Number.isFinite(item.steps) &&
         item.steps >= 0,
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function loadMealsLog(): MealRecord[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(MEALS_LOG_KEY);
+  if (!raw) return [];
+  if (rawTooLarge(raw, MEALS_LOG_KEY)) return [];
+  try {
+    const parsed = JSON.parse(raw) as MealRecord[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        Boolean(item) &&
+        typeof item.id === "string" &&
+        typeof item.date === "string" &&
+        typeof item.name === "string" &&
+        typeof item.meal === "string" &&
+        item.meal in MEAL_LABELS &&
+        typeof item.kcal === "number" &&
+        Number.isFinite(item.kcal) &&
+        item.kcal >= 0,
     );
   } catch {
     return [];

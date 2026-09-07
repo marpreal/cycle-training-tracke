@@ -4,6 +4,8 @@ import {
   defaultSettings,
   DEFAULT_ISO_DATE,
   type BodyMeasurementRecord,
+  MEAL_LABELS,
+  type MealRecord,
   type PeriodRecord,
   type PeriodSettings,
   type StepsRecord,
@@ -22,6 +24,7 @@ export type AppSnapshotV1 = {
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
+  mealsLog?: MealRecord[];
   trainingPlans?: TrainingPlan[];
   /** Preferencias UI que antes no iban a localStorage. */
   preferences?: {
@@ -42,6 +45,7 @@ export function buildSnapshot(parts: {
   profile: UserProfile;
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
+  mealsLog?: MealRecord[];
   trainingPlans?: TrainingPlan[];
   preferences?: AppSnapshotV1["preferences"];
 }): AppSnapshotV1 {
@@ -142,6 +146,22 @@ function isStepsRecord(x: unknown): x is StepsRecord {
   );
 }
 
+function isMealRecord(x: unknown): x is MealRecord {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.date === "string" &&
+    typeof o.name === "string" &&
+    typeof o.meal === "string" &&
+    o.meal in MEAL_LABELS &&
+    typeof o.kcal === "number" &&
+    Number.isFinite(o.kcal) &&
+    o.kcal >= 0 &&
+    (o.proteinG == null || typeof o.proteinG === "number")
+  );
+}
+
 /** Valida y normaliza un snapshot remoto; devuelve null si no es valido. */
 export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!raw || typeof raw !== "object") return null;
@@ -154,6 +174,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!isUserProfile(o.profile)) return null;
   if (!Array.isArray(o.measurementLog) || !o.measurementLog.every(isBodyMeasurementRecord)) return null;
   if (o.stepsLog != null && (!Array.isArray(o.stepsLog) || !o.stepsLog.every(isStepsRecord))) return null;
+  if (o.mealsLog != null && (!Array.isArray(o.mealsLog) || !o.mealsLog.every(isMealRecord))) return null;
 
   let preferences: AppSnapshotV1["preferences"];
   if (o.preferences != null && typeof o.preferences === "object") {
@@ -196,6 +217,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
     measurementLog: o.measurementLog,
   };
   if (Array.isArray(o.stepsLog)) out.stepsLog = o.stepsLog;
+  if (Array.isArray(o.mealsLog)) out.mealsLog = o.mealsLog;
   if (preferences) out.preferences = preferences;
   if (Array.isArray(o.trainingPlans)) {
     out.trainingPlans = (o.trainingPlans as TrainingPlan[]).filter(
