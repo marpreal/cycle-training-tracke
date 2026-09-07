@@ -8,6 +8,8 @@ import {
   defaultSettings,
   DEFAULT_ISO_DATE,
   type BodyMeasurementRecord,
+  FREQUENT_MEALS_KEY,
+  type FrequentMeal,
   MEAL_LABELS,
   MEALS_LOG_KEY,
   type MealRecord,
@@ -26,6 +28,7 @@ import {
   type TrainingRecord,
   USER_PROFILE_KEY,
   type UserProfile,
+  withCurrentNutritionTargets,
 } from "@/lib/appTypes";
 
 /** Por encima de esto, JSON.parse/stringify puede bloquear el hilo principal mucho tiempo. */
@@ -128,7 +131,7 @@ export function loadUserProfile(): UserProfile {
   }
   const tw = parsed.targetWeightKg;
   const wg = parsed.weightGoalWeeks;
-  return {
+  return withCurrentNutritionTargets({
     ...defaultProfile,
     ...parsed,
     age: Number(parsed.age) || defaultProfile.age,
@@ -150,7 +153,15 @@ export function loadUserProfile(): UserProfile {
             const n = Number(wg);
             return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
           })(),
-  };
+    dailyKcalTarget: positiveOrNull(parsed.dailyKcalTarget),
+    dailyProteinTargetG: positiveOrNull(parsed.dailyProteinTargetG),
+  });
+}
+
+function positiveOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
 export function loadBodyMeasurements(): BodyMeasurementRecord[] {
@@ -207,6 +218,30 @@ export function loadMealsLog(): MealRecord[] {
         typeof item.kcal === "number" &&
         Number.isFinite(item.kcal) &&
         item.kcal >= 0,
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function loadFrequentMeals(): FrequentMeal[] {
+  if (typeof window === "undefined") return [];
+  const raw = localStorage.getItem(FREQUENT_MEALS_KEY);
+  if (!raw) return [];
+  if (rawTooLarge(raw, FREQUENT_MEALS_KEY)) return [];
+  try {
+    const parsed = JSON.parse(raw) as FrequentMeal[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        Boolean(item) &&
+        typeof item.id === "string" &&
+        typeof item.name === "string" &&
+        typeof item.kcal === "number" &&
+        Number.isFinite(item.kcal) &&
+        item.kcal >= 0 &&
+        (item.proteinG == null || typeof item.proteinG === "number") &&
+        (item.meal == null || item.meal in MEAL_LABELS),
     );
   } catch {
     return [];

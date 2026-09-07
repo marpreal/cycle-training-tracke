@@ -72,6 +72,7 @@ export function buildLocalStorageBackupJson(): string {
     "body-measurements-v1",
     "steps-log-v1",
     "meals-log-v1",
+    "frequent-meals-v1",
     "training-plans-v1",
     "custom-exercises-by-template-v1",
     "progression-horizon-weeks-v1",

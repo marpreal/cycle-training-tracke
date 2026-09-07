@@ -2,81 +2,105 @@
 
 import { useState } from "react";
 import { SpanishDatePicker } from "@/components/SpanishDatePicker";
-import { DEFAULT_ISO_DATE, MEAL_LABELS, MEAL_TYPES, type MealType } from "@/lib/appTypes";
-import type { DietDay, DietStats } from "@/lib/diet";
-import { formatWeekStart } from "@/lib/trainingWeeks";
+import { DailyOverview } from "@/components/nutricion/DailyOverview";
+import { QuickAddBar } from "@/components/nutricion/QuickAddBar";
+import {
+  DEFAULT_ISO_DATE,
+  MEAL_LABELS,
+  MEAL_TYPES,
+  type FrequentMeal,
+  type MealRecord,
+  type MealType,
+} from "@/lib/appTypes";
+import {
+  findDay,
+  groupDayByMealType,
+  type DietDay,
+  type RollingAverage,
+  type WeightTrend,
+} from "@/lib/diet";
+import { formatGrams, formatKcal, formatKg, formatSignedKg } from "@/lib/dietFormat";
 import type { UseMealFormReturn } from "@/hooks/useMealForm";
 
-const COLLAPSED_DAYS = 7;
-const MAX_WEEKS_SHOWN = 8;
-
-function formatKcal(value: number): string {
-  return `${Math.round(value).toLocaleString("es-ES")} kcal`;
-}
+const COLLAPSED_DAYS = 5;
 
 function formatDay(isoDate: string): string {
   const d = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString("es-ES", {
-    weekday: "long",
-    day: "numeric",
-    month: "short",
-  });
+  return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "short" });
 }
 
-/** "Te quedan 320 kcal" / "180 kcal por encima" respecto a un objetivo. */
-function balanceText(consumed: number, target: number): { text: string; over: boolean } {
-  const diff = Math.round(target - consumed);
-  return diff >= 0
-    ? { text: `Te quedan ${diff.toLocaleString("es-ES")} kcal`, over: false }
-    : { text: `${Math.abs(diff).toLocaleString("es-ES")} kcal por encima`, over: true };
-}
-
-interface DietCardProps {
+type DietCardProps = {
   meals: UseMealFormReturn;
-  stats: DietStats;
   days: DietDay[];
-  /** Objetivo calórico diario del perfil (mantenimiento ± ajuste). */
-  targetCalories: number;
-  /** Objetivo de proteína diaria (g). */
+  frequentMeals: FrequentMeal[];
+  rolling7: RollingAverage;
+  weightTrend: WeightTrend;
+  kcalTarget: number;
   proteinTarget: number;
+  targetWeightKg: number | null;
+  currentWeightKg: number;
   hasHydrated: boolean;
   onSave: () => void;
   onRemove: (id: string) => void;
-}
+  onQuickAdd: (frequent: FrequentMeal) => void;
+  onSaveFrequent: (frequent: FrequentMeal) => void;
+  onRemoveFrequent: (id: string) => void;
+};
 
 export function DietCard({
   meals,
-  stats,
   days,
-  targetCalories,
+  frequentMeals,
+  rolling7,
+  weightTrend,
+  kcalTarget,
   proteinTarget,
+  targetWeightKg,
+  currentWeightKg,
   hasHydrated,
   onSave,
   onRemove,
+  onQuickAdd,
+  onSaveFrequent,
+  onRemoveFrequent,
 }: DietCardProps) {
   const [showAllDays, setShowAllDays] = useState(false);
 
-  const todayBalance = balanceText(stats.today.kcal, targetCalories);
-  const weekTarget = targetCalories * 7;
-  const weekBalance = balanceText(stats.week.kcal, weekTarget);
-  const visibleDays = showAllDays ? days : days.slice(0, COLLAPSED_DAYS);
-  const visibleWeeks = stats.weeks.slice(0, MAX_WEEKS_SHOWN);
+  const selectedDay = findDay(days, meals.mealDateInput);
+  const todayDay = findDay(days, meals.todayIso);
+  const groups = groupDayByMealType(selectedDay);
+  const previousDays = days.filter((day) => day.date !== meals.mealDateInput);
+  const visiblePreviousDays = showAllDays ? previousDays : previousDays.slice(0, COLLAPSED_DAYS);
+  const showDatePicker = meals.showDateField || meals.isOtherDate;
 
   return (
     <article className="card">
       <h2 className="section-title">Dieta: comidas y calorías</h2>
-      <p className="muted mb-3 text-sm">
-        Apunta las kcal de cada comida; describir la comida es opcional, así que puedes sumar
-        calorías sueltas sin escribir qué era. Los totales se comparan con tu objetivo calórico del
-        perfil ({formatKcal(targetCalories)}/día).
-      </p>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="field">
-          <span>Fecha</span>
-          <SpanishDatePicker value={meals.mealDateInput} onChange={meals.setMealDateInput} />
-        </label>
+      <DailyOverview
+        dateIso={meals.todayIso}
+        kcal={todayDay?.kcal ?? 0}
+        proteinG={todayDay?.proteinG ?? 0}
+        kcalTarget={kcalTarget}
+        proteinTarget={proteinTarget}
+        targetWeightKg={targetWeightKg}
+        weightTrend={weightTrend}
+        currentWeightKg={currentWeightKg}
+        hasHydrated={hasHydrated}
+      />
+
+      <div className="mt-4">
+        <QuickAddBar
+          frequentMeals={frequentMeals}
+          onQuickAdd={onQuickAdd}
+          onSaveFrequent={onSaveFrequent}
+          onRemoveFrequent={onRemoveFrequent}
+          disabled={meals.mealDateInput === DEFAULT_ISO_DATE}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="field">
           <span>Comida</span>
           <select
@@ -89,6 +113,15 @@ export function DietCard({
               </option>
             ))}
           </select>
+        </label>
+        <label className="field">
+          <span>Qué has comido · opcional</span>
+          <input
+            type="text"
+            value={meals.mealNameInput}
+            onChange={(e) => meals.setMealNameInput(e.target.value)}
+            placeholder="ej. Yogur proteico con avena"
+          />
         </label>
         <label className="field">
           <span>Calorías (kcal)</span>
@@ -107,21 +140,27 @@ export function DietCard({
             inputMode="decimal"
             value={meals.mealProteinInput}
             onChange={(e) => meals.setMealProteinInput(e.target.value)}
-            placeholder="ej. 22"
+            placeholder="ej. 28,5"
           />
         </label>
-        <label className="field sm:col-span-2">
-          <span>Qué has comido · opcional</span>
-          <input
-            type="text"
-            value={meals.mealNameInput}
-            onChange={(e) => meals.setMealNameInput(e.target.value)}
-            placeholder="ej. Yogur con avena y plátano (o déjalo vacío)"
-          />
-        </label>
+        {showDatePicker ? (
+          <label className="field sm:col-span-2">
+            <span>Fecha</span>
+            <SpanishDatePicker value={meals.mealDateInput} onChange={meals.setMealDateInput} />
+          </label>
+        ) : null}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <label className="load-detail-toggle mt-3">
+        <input
+          type="checkbox"
+          checked={meals.saveAsFrequent}
+          onChange={(e) => meals.setSaveAsFrequent(e.target.checked)}
+        />
+        <span>Guardar como frecuente</span>
+      </label>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           className="primary-button"
           type="button"
@@ -135,6 +174,23 @@ export function DietCard({
             Cancelar
           </button>
         ) : null}
+        {showDatePicker ? (
+          <button
+            type="button"
+            className="muted text-xs underline underline-offset-2"
+            onClick={meals.useTodayDate}
+          >
+            Volver a hoy
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="muted text-xs underline underline-offset-2"
+            onClick={() => meals.setShowDateField(true)}
+          >
+            Otra fecha
+          </button>
+        )}
       </div>
       {hasHydrated && !meals.canSaveMeal ? (
         <p className="mt-2 text-xs text-red-500">
@@ -144,156 +200,167 @@ export function DietCard({
         </p>
       ) : null}
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <article className="metric-card">
-          <p className="metric-label">Hoy</p>
-          <p className="metric-value-small">{hasHydrated ? formatKcal(stats.today.kcal) : "—"}</p>
-          <p className={`metric-sublabel ${hasHydrated && todayBalance.over ? "text-red-500" : ""}`}>
-            {hasHydrated ? todayBalance.text : "—"}
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">Esta semana</p>
-          <p className="metric-value-small">{hasHydrated ? formatKcal(stats.week.kcal) : "—"}</p>
-          <p className={`metric-sublabel ${hasHydrated && weekBalance.over ? "text-red-500" : ""}`}>
-            {hasHydrated ? `${weekBalance.text} (obj. ${formatKcal(weekTarget)})` : "—"}
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">Media diaria (semana)</p>
-          <p className="metric-value-small">
-            {hasHydrated ? formatKcal(stats.week.avgKcalPerLoggedDay) : "—"}
-          </p>
-          <p className="metric-sublabel">
-            {hasHydrated ? `${stats.week.daysLogged} de 7 días registrados` : "—"}
-          </p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">Este mes</p>
-          <p className="metric-value-small">{hasHydrated ? formatKcal(stats.month.kcal) : "—"}</p>
-          <p className="metric-sublabel">
-            {hasHydrated
-              ? `${formatKcal(stats.month.avgKcalPerLoggedDay)}/día en ${stats.month.daysLogged} días`
-              : "—"}
-          </p>
-        </article>
-      </div>
-
-      {hasHydrated && stats.today.proteinG > 0 ? (
-        <p className="phase-description mt-3 text-sm">
-          Proteína de hoy: <strong>{Math.round(stats.today.proteinG)} g</strong> de un objetivo de ~
-          {proteinTarget} g.
-        </p>
-      ) : null}
-
-      {!hasHydrated ? null : stats.isEmpty ? (
-        <p className="muted mt-4 text-sm">
-          Todavía no has apuntado ninguna comida. Añade la primera y aquí verás las kcal por día y
-          por semana.
-        </p>
-      ) : (
+      {hasHydrated ? (
         <>
-          <p className="block-title mt-4 mb-2">Por día</p>
-          <div className="stack">
-            {visibleDays.map((day) => {
-              const dayBalance = balanceText(day.kcal, targetCalories);
-              return (
-                <div key={day.date} className="log-card" style={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="log-title">{formatDay(day.date)}</p>
-                    <p className="text-sm">
-                      <strong>{formatKcal(day.kcal)}</strong>
-                      {day.proteinG > 0 ? (
-                        <span className="muted"> · {day.proteinG} g proteína</span>
-                      ) : null}
-                      <span className={`ml-2 text-xs ${dayBalance.over ? "text-red-500" : "muted"}`}>
-                        {dayBalance.text}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="stack mt-2">
-                    {day.entries.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        <span className="min-w-0">
-                          <span className="muted">{MEAL_LABELS[entry.meal]}</span>
-                          {entry.name ? <> · {entry.name}</> : null}
-                          <span className="muted">
-                            {" "}
-                            · {formatKcal(entry.kcal)}
-                            {entry.proteinG != null && entry.proteinG > 0
-                              ? ` · ${entry.proteinG} g prot.`
-                              : ""}
-                          </span>
-                        </span>
-                        <span className="flex gap-2">
-                          <button
-                            type="button"
-                            className="action-button action-end"
-                            onClick={() => meals.startEditMeal(entry)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() => onRemove(entry.id)}
-                          >
-                            Borrar
-                          </button>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {days.length > COLLAPSED_DAYS ? (
-            <button
-              type="button"
-              className="muted mt-2 text-xs underline underline-offset-2"
-              onClick={() => setShowAllDays((v) => !v)}
-            >
-              {showAllDays ? "Ver solo los últimos días" : `Ver todos los días (${days.length})`}
-            </button>
-          ) : null}
-
-          <p className="block-title mt-4 mb-2">Por semana</p>
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Semana del</th>
-                  <th>Días registrados</th>
-                  <th>kcal totales</th>
-                  <th>Media kcal/día</th>
-                  <th>Proteína total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleWeeks.map((week) => (
-                  <tr key={week.weekStart}>
-                    <td>{formatWeekStart(week.weekStart)}</td>
-                    <td>{week.daysLogged}</td>
-                    <td>{formatKcal(week.kcal)}</td>
-                    <td>{formatKcal(week.avgKcalPerLoggedDay)}</td>
-                    <td>{week.proteinG > 0 ? `${week.proteinG} g` : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {stats.weeks.length > MAX_WEEKS_SHOWN ? (
-            <p className="muted mt-2 text-xs">
-              Mostrando las {MAX_WEEKS_SHOWN} semanas más recientes.
+          <h3 className="block-title mt-4">
+            {meals.isOtherDate ? formatDay(meals.mealDateInput) : "Hoy"}
+          </h3>
+          {groups.length === 0 ? (
+            <p className="muted text-sm">
+              Aún no has apuntado nada{meals.isOtherDate ? " ese día" : " hoy"}.
             </p>
+          ) : (
+            <div className="stack">
+              {groups.map((group) => (
+                <section key={group.meal} className="meal-group" aria-label={group.label}>
+                  <div className="meal-group-head">
+                    <h4 className="meal-group-title">{group.label}</h4>
+                    <p className="meal-group-kcal">{formatKcal(group.kcal)} kcal</p>
+                  </div>
+                  {group.entries.map((entry) => (
+                    <DietEntryRow
+                      key={entry.id}
+                      entry={entry}
+                      onEdit={() => meals.startEditMeal(entry)}
+                      onRemove={() => onRemove(entry.id)}
+                    />
+                  ))}
+                </section>
+              ))}
+            </div>
+          )}
+
+          <h3 className="block-title mt-4">Tendencia</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <article className="metric-card">
+              <p className="metric-label">Media 7 días · calorías</p>
+              <p className="metric-value-small">
+                {rolling7.daysLogged > 0 ? `${formatKcal(rolling7.avgKcal)} kcal` : "Sin datos"}
+              </p>
+              <p className="metric-sublabel">
+                {rolling7.daysLogged > 0
+                  ? `${rolling7.daysLogged} de ${rolling7.windowDays} días registrados`
+                  : "Apunta algún día para verlo"}
+              </p>
+            </article>
+            <article className="metric-card">
+              <p className="metric-label">Media 7 días · proteína</p>
+              <p className="metric-value-small">
+                {rolling7.daysLogged > 0 ? `${formatGrams(rolling7.avgProteinG)} g` : "Sin datos"}
+              </p>
+              <p className="metric-sublabel">Objetivo {formatGrams(proteinTarget)} g/día</p>
+            </article>
+            <article className="metric-card">
+              <p className="metric-label">Peso medio esta semana</p>
+              <p className="metric-value-small">
+                {weightTrend.currentWeekAvg != null
+                  ? `${formatKg(weightTrend.currentWeekAvg)} kg`
+                  : "Sin pesajes"}
+              </p>
+              <p className="metric-sublabel">
+                {weightTrend.previousWeekAvg != null
+                  ? `Semana anterior: ${formatKg(weightTrend.previousWeekAvg)} kg`
+                  : "Sin semana anterior para comparar"}
+              </p>
+            </article>
+          </div>
+          <p className="phase-description mt-3 text-sm">
+            {weightTrend.deltaKg == null ? (
+              <>
+                La tendencia se calcula con la media semanal de peso, no con el último pesaje. Hacen
+                falta pesajes en esta semana y en la anterior para poder compararlas.
+              </>
+            ) : (
+              <>
+                Tendencia:{" "}
+                <strong
+                  style={{
+                    color:
+                      weightTrend.deltaKg < 0
+                        ? "#16a34a"
+                        : weightTrend.deltaKg > 0
+                          ? "#dc2626"
+                          : "var(--muted)",
+                  }}
+                >
+                  {formatSignedKg(weightTrend.deltaKg)} kg
+                </strong>{" "}
+                respecto a la semana pasada (media de {weightTrend.currentWeekCount} pesaje
+                {weightTrend.currentWeekCount === 1 ? "" : "s"} frente a{" "}
+                {weightTrend.previousWeekCount}).
+              </>
+            )}
+          </p>
+
+          {previousDays.length > 0 ? (
+            <>
+              <h3 className="block-title mt-4">Días anteriores</h3>
+              <div className="stack">
+                {visiblePreviousDays.map((day) => (
+                  <div key={day.date} className="log-card">
+                    <div>
+                      <p className="log-title">{formatDay(day.date)}</p>
+                      <p className="muted text-sm">
+                        {formatKcal(day.kcal)} kcal
+                        {day.proteinG > 0 ? ` · ${formatGrams(day.proteinG)} g proteína` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="action-button action-end"
+                      onClick={() => {
+                        meals.setMealDateInput(day.date);
+                        meals.setShowDateField(true);
+                      }}
+                    >
+                      Ver
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {previousDays.length > COLLAPSED_DAYS ? (
+                <button
+                  type="button"
+                  className="muted mt-2 text-xs underline underline-offset-2"
+                  onClick={() => setShowAllDays((v) => !v)}
+                >
+                  {showAllDays ? "Ver solo los últimos" : `Ver todos (${previousDays.length})`}
+                </button>
+              ) : null}
+            </>
           ) : null}
         </>
-      )}
+      ) : null}
     </article>
+  );
+}
+
+type DietEntryRowProps = {
+  entry: MealRecord;
+  onEdit: () => void;
+  onRemove: () => void;
+};
+
+function DietEntryRow({ entry, onEdit, onRemove }: DietEntryRowProps) {
+  return (
+    <div className="diet-entry">
+      <span className="diet-entry-name">
+        {entry.name || <span className="muted">Sin descripción</span>}
+        {entry.proteinG != null && entry.proteinG > 0 ? (
+          <span className="diet-entry-protein"> · {formatGrams(entry.proteinG)} g proteína</span>
+        ) : null}
+      </span>
+      <span className="diet-entry-side">
+        <span className="text-sm font-semibold">{formatKcal(entry.kcal)} kcal</span>
+        <span className="diet-entry-actions">
+          <button type="button" className="action-button action-end" onClick={onEdit}>
+            Editar
+          </button>
+          <button type="button" className="danger-button" onClick={onRemove}>
+            Borrar
+          </button>
+        </span>
+      </span>
+    </div>
   );
 }

@@ -1,5 +1,10 @@
 /** Estimaciones orientativas (no sustituyen valoración profesional). */
 
+/** Objetivos fijados a mano para la fase de definición; el cálculo por TDEE queda como referencia. */
+export const DEFAULT_DAILY_KCAL_TARGET = 1550;
+export const DEFAULT_DAILY_PROTEIN_TARGET_G = 105;
+export const DEFAULT_TARGET_WEIGHT_KG = 51;
+
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "active";
 
 export const ACTIVITY_FACTORS: Record<ActivityLevel, { factor: number; label: string }> = {
@@ -55,10 +60,9 @@ export function goalCalorieAdjustment(
 
   const diff = weightKg - (targetWeightKg as number); // positive=loss, negative=gain
 
-  let raw: number;
   const weeks = weightGoalWeeks != null && weightGoalWeeks > 0 ? weightGoalWeeks : 12;
   // rate-based: diff kg over N weeks → kcal/day adjustment (default: 12-week reference)
-  raw = -Math.round(((diff / weeks) * 7700) / 7);
+  const raw = -Math.round(((diff / weeks) * 7700) / 7);
 
   if (goal === "loss") {
     // Clamp to [-500, -300]

@@ -1,6 +1,11 @@
-/** Diario de comidas: totales por día, semana y mes (orientativo). */
-
-import { MEAL_TYPES, type MealRecord } from "@/lib/appTypes";
+import {
+  MEAL_LABELS,
+  MEAL_TYPES,
+  toIsoDate,
+  type BodyMeasurementRecord,
+  type MealRecord,
+  type MealType,
+} from "@/lib/appTypes";
 import { weekStartIso } from "@/lib/trainingWeeks";
 
 const MEAL_ORDER = new Map(MEAL_TYPES.map((meal, index) => [meal, index]));
@@ -9,55 +14,51 @@ export type DietDay = {
   date: string;
   kcal: number;
   proteinG: number;
-  /** Comidas de ese día, en el orden habitual (desayuno → cena). */
   entries: MealRecord[];
 };
 
-export type DietWeek = {
-  /** Lunes (ISO) de la semana. */
-  weekStart: string;
+export type MealGroup = {
+  meal: MealType;
+  label: string;
   kcal: number;
   proteinG: number;
-  /** Días de esa semana con al menos una comida registrada. */
+  entries: MealRecord[];
+};
+
+export type TargetProgress = {
+  consumed: number;
+  target: number;
+  /** Negativo cuando se pasa del objetivo. */
+  remaining: number;
+  /** Porcentaje real, puede pasar de 100. */
+  percent: number;
+  /** Porcentaje recortado a 0–100 para el ancho de la barra. */
+  barPercent: number;
+  over: boolean;
+};
+
+export type RollingAverage = {
+  windowDays: number;
   daysLogged: number;
-  /** Media de kcal por día registrado (0 si no hay ninguno). */
-  avgKcalPerLoggedDay: number;
+  avgKcal: number;
+  avgProteinG: number;
 };
 
-export type DietPeriodTotals = {
-  kcal: number;
-  proteinG: number;
-  daysLogged: number;
-  avgKcalPerLoggedDay: number;
+export type WeightTrend = {
+  currentWeekAvg: number | null;
+  previousWeekAvg: number | null;
+  /** Diferencia entre medias semanales; negativo = bajada. Null si falta alguna semana. */
+  deltaKg: number | null;
+  currentWeekCount: number;
+  previousWeekCount: number;
+  latestWeightKg: number | null;
+  latestDate: string | null;
 };
 
-export type DietStats = {
-  today: { date: string; kcal: number; proteinG: number; meals: number };
-  /** Semana en curso (lunes a domingo). */
-  week: DietWeek;
-  /** Mes natural en curso. */
-  month: DietPeriodTotals;
-  /** Semanas con registros, de la más reciente a la más antigua. */
-  weeks: DietWeek[];
-  /** True cuando todavía no hay ninguna comida guardada. */
-  isEmpty: boolean;
-};
-
-function toIso(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
-function avgPerDay(kcal: number, daysLogged: number): number {
-  return daysLogged > 0 ? Math.round(kcal / daysLogged) : 0;
-}
-
-function mealSortKey(entry: MealRecord): number {
-  return MEAL_ORDER.get(entry.meal) ?? MEAL_TYPES.length;
-}
-
-/** Agrupa las comidas por fecha, de la más reciente a la más antigua. */
 export function groupMealsByDate(meals: MealRecord[]): DietDay[] {
   const byDate = new Map<string, DietDay>();
   for (const meal of meals) {
@@ -71,81 +72,135 @@ export function groupMealsByDate(meals: MealRecord[]): DietDay[] {
   const days = [...byDate.values()];
   for (const day of days) {
     day.entries.sort((a, b) => {
-      const order = mealSortKey(a) - mealSortKey(b);
+      const order = (MEAL_ORDER.get(a.meal) ?? MEAL_TYPES.length) - (MEAL_ORDER.get(b.meal) ?? MEAL_TYPES.length);
       return order !== 0 ? order : a.id.localeCompare(b.id);
     });
     day.kcal = Math.round(day.kcal);
-    day.proteinG = Math.round(day.proteinG);
+    day.proteinG = round1(day.proteinG);
   }
   return days.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-/** Totales por semana (lunes a domingo), de la más reciente a la más antigua. */
-export function groupDaysByWeek(days: DietDay[]): DietWeek[] {
-  const byWeek = new Map<string, DietWeek>();
-  for (const day of days) {
-    const weekStart = weekStartIso(day.date);
-    const week =
-      byWeek.get(weekStart) ?? { weekStart, kcal: 0, proteinG: 0, daysLogged: 0, avgKcalPerLoggedDay: 0 };
-    week.kcal += day.kcal;
-    week.proteinG += day.proteinG;
-    week.daysLogged += 1;
-    byWeek.set(weekStart, week);
+/** Agrupa las comidas de un día por tipo, omitiendo los tipos sin entradas. */
+export function groupDayByMealType(day: DietDay | undefined): MealGroup[] {
+  if (!day) return [];
+  const groups: MealGroup[] = [];
+  for (const meal of MEAL_TYPES) {
+    const entries = day.entries.filter((entry) => entry.meal === meal);
+    if (entries.length === 0) continue;
+    groups.push({
+      meal,
+      label: MEAL_LABELS[meal],
+      kcal: Math.round(entries.reduce((sum, entry) => sum + entry.kcal, 0)),
+      proteinG: round1(entries.reduce((sum, entry) => sum + (entry.proteinG ?? 0), 0)),
+      entries,
+    });
   }
-  const weeks = [...byWeek.values()];
-  for (const week of weeks) {
-    week.avgKcalPerLoggedDay = avgPerDay(week.kcal, week.daysLogged);
-  }
-  return weeks.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+  return groups;
+}
+
+export function findDay(days: DietDay[], date: string): DietDay | undefined {
+  return days.find((day) => day.date === date);
+}
+
+export function targetProgress(consumed: number, target: number): TargetProgress {
+  const safeTarget = target > 0 ? target : 0;
+  const percent = safeTarget > 0 ? (consumed / safeTarget) * 100 : 0;
+  return {
+    consumed,
+    target: safeTarget,
+    remaining: round1(safeTarget - consumed),
+    percent: Math.round(percent),
+    barPercent: Math.max(0, Math.min(100, percent)),
+    over: safeTarget > 0 && consumed > safeTarget,
+  };
 }
 
 /**
- * Calcula kcal (y proteína) de hoy, de la semana en curso y del mes, más el
- * histórico semanal. Las comidas sin fecha válida se ignoran.
+ * Media de los últimos `windowDays` días naturales terminando hoy.
+ * Se divide entre los días con registro, no entre la ventana completa, para que
+ * saltarse un día no hunda la media.
  */
-export function computeDietStats(meals: MealRecord[], today = new Date()): DietStats {
-  const todayIso = toIso(today);
-  const currentWeekStart = weekStartIso(todayIso);
-  const monthPrefix = todayIso.slice(0, 8); // "YYYY-MM-"
+export function rollingAverages(
+  days: DietDay[],
+  windowDays = 7,
+  today = new Date(),
+): RollingAverage {
+  const start = new Date(today);
+  start.setDate(start.getDate() - (windowDays - 1));
+  const startIso = toIsoDate(start);
+  const endIso = toIsoDate(today);
 
-  const days = groupMealsByDate(meals);
-  const weeks = groupDaysByWeek(days);
-
-  const todayDay = days.find((day) => day.date === todayIso);
-  const currentWeek =
-    weeks.find((week) => week.weekStart === currentWeekStart) ?? {
-      weekStart: currentWeekStart,
-      kcal: 0,
-      proteinG: 0,
-      daysLogged: 0,
-      avgKcalPerLoggedDay: 0,
-    };
-
-  let monthKcal = 0;
-  let monthProteinG = 0;
-  let monthDaysLogged = 0;
+  let kcal = 0;
+  let proteinG = 0;
+  let daysLogged = 0;
   for (const day of days) {
-    if (!day.date.startsWith(monthPrefix)) continue;
-    monthKcal += day.kcal;
-    monthProteinG += day.proteinG;
-    monthDaysLogged += 1;
+    if (day.date < startIso || day.date > endIso) continue;
+    kcal += day.kcal;
+    proteinG += day.proteinG;
+    daysLogged += 1;
   }
 
   return {
-    today: {
-      date: todayIso,
-      kcal: todayDay?.kcal ?? 0,
-      proteinG: todayDay?.proteinG ?? 0,
-      meals: todayDay?.entries.length ?? 0,
-    },
-    week: currentWeek,
-    month: {
-      kcal: monthKcal,
-      proteinG: monthProteinG,
-      daysLogged: monthDaysLogged,
-      avgKcalPerLoggedDay: avgPerDay(monthKcal, monthDaysLogged),
-    },
-    weeks,
-    isEmpty: days.length === 0,
+    windowDays,
+    daysLogged,
+    avgKcal: daysLogged > 0 ? Math.round(kcal / daysLogged) : 0,
+    avgProteinG: daysLogged > 0 ? round1(proteinG / daysLogged) : 0,
+  };
+}
+
+function shiftIsoWeeks(weekStart: string, weeks: number): string {
+  const d = new Date(`${weekStart}T00:00:00`);
+  d.setDate(d.getDate() + weeks * 7);
+  return toIsoDate(d);
+}
+
+function averageWeightInWeek(
+  byWeek: Map<string, number[]>,
+  weekStart: string,
+): { avg: number | null; count: number } {
+  const values = byWeek.get(weekStart);
+  if (!values || values.length === 0) return { avg: null, count: 0 };
+  const sum = values.reduce((a, b) => a + b, 0);
+  return { avg: round1(sum / values.length), count: values.length };
+}
+
+/**
+ * Tendencia por media semanal de peso (lunes a domingo), no por el último pesaje:
+ * el peso diario fluctúa demasiado para comparar dos pesajes sueltos.
+ */
+export function computeWeightTrend(
+  measurements: BodyMeasurementRecord[],
+  today = new Date(),
+): WeightTrend {
+  const byWeek = new Map<string, number[]>();
+  let latestWeightKg: number | null = null;
+  let latestDate: string | null = null;
+
+  for (const item of measurements) {
+    if (item.weightKg == null || !Number.isFinite(item.weightKg) || !item.date) continue;
+    const week = weekStartIso(item.date);
+    const values = byWeek.get(week) ?? [];
+    values.push(item.weightKg);
+    byWeek.set(week, values);
+    if (latestDate === null || item.date > latestDate) {
+      latestDate = item.date;
+      latestWeightKg = item.weightKg;
+    }
+  }
+
+  const currentWeekStart = weekStartIso(toIsoDate(today));
+  const current = averageWeightInWeek(byWeek, currentWeekStart);
+  const previous = averageWeightInWeek(byWeek, shiftIsoWeeks(currentWeekStart, -1));
+
+  return {
+    currentWeekAvg: current.avg,
+    previousWeekAvg: previous.avg,
+    deltaKg:
+      current.avg != null && previous.avg != null ? round1(current.avg - previous.avg) : null,
+    currentWeekCount: current.count,
+    previousWeekCount: previous.count,
+    latestWeightKg,
+    latestDate,
   };
 }

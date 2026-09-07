@@ -40,6 +40,7 @@ import type {
   BodyMeasurementRecord,
   FlowLevel,
   PeriodRecord,
+  FrequentMeal,
   MealRecord,
   PeriodSettings,
   StepsRecord,
@@ -52,6 +53,7 @@ import {
   defaultProfile,
   defaultSettings,
   DEFAULT_ISO_DATE,
+  FREQUENT_MEALS_KEY,
   MEALS_LOG_KEY,
   PERIOD_LOG_KEY,
   PERIOD_SETTINGS_KEY,
@@ -72,6 +74,7 @@ import {
   loadCustomExercisesByTemplate,
   loadExcludedPlanExercisesByTemplate,
   loadExerciseOrderByTemplate,
+  loadFrequentMeals,
   loadMealsLog,
   loadProgressionHorizonWeeks,
   loadSettings,
@@ -112,7 +115,7 @@ import { PeriodDelaysCard } from "@/components/regla/PeriodDelaysCard";
 import { WeeklyConsistencyCard } from "@/components/entreno/WeeklyConsistencyCard";
 import { computeWeeklyConsistency } from "@/lib/trainingWeeks";
 import { DietCard } from "@/components/nutricion/DietCard";
-import { computeDietStats, groupMealsByDate } from "@/lib/diet";
+import { computeWeightTrend, groupMealsByDate, rollingAverages } from "@/lib/diet";
 
 const REMOTE_SYNC_UI =
   typeof process.env.NEXT_PUBLIC_REMOTE_SYNC !== "undefined" &&
@@ -139,6 +142,7 @@ export default function Home() {
   const [measurementLog, setMeasurementLog] = useState<BodyMeasurementRecord[]>([]);
   const [stepsLog, setStepsLog] = useState<StepsRecord[]>([]);
   const [mealsLog, setMealsLog] = useState<MealRecord[]>([]);
+  const [frequentMeals, setFrequentMeals] = useState<FrequentMeal[]>([]);
   const [progressionHorizonWeeks, setProgressionHorizonWeeks] = useState(6);
   const [customExercisesByTemplate, setCustomExercisesByTemplate] = useState<
     Record<string, string[]>
@@ -237,6 +241,7 @@ export default function Home() {
       setMeasurementLog(loadBodyMeasurements());
       setStepsLog(loadStepsLog());
       setMealsLog(loadMealsLog());
+      setFrequentMeals(loadFrequentMeals());
       setPeriodEndInput(today);
       setFlowDateInput(today);
       form.initDate(today);
@@ -308,6 +313,11 @@ export default function Home() {
     if (!hasHydrated) return;
     try { localStorage.setItem(MEALS_LOG_KEY, JSON.stringify(mealsLog)); } catch { /* quota */ }
   }, [mealsLog, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    try { localStorage.setItem(FREQUENT_MEALS_KEY, JSON.stringify(frequentMeals)); } catch { /* quota */ }
+  }, [frequentMeals, hasHydrated]);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -412,6 +422,7 @@ export default function Home() {
       setMeasurementLog(snapshot.measurementLog);
       setStepsLog(snapshot.stepsLog ?? []);
       setMealsLog(snapshot.mealsLog ?? []);
+      setFrequentMeals(snapshot.frequentMeals ?? []);
       if (snapshot.preferences?.progressionHorizonWeeks) {
         setProgressionHorizonWeeks(snapshot.preferences.progressionHorizonWeeks);
       }
@@ -439,7 +450,7 @@ export default function Home() {
     if (!hasHydrated) return;
     const pack = {
       settings, trainingLog, periodLog, profile,
-      measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate,
+      measurementLog, stepsLog, mealsLog, frequentMeals, progressionHorizonWeeks, customExercisesByTemplate,
       exerciseOrderByTemplate, excludedPlanExercises,
     };
     const next = JSON.stringify(pack);
@@ -456,7 +467,7 @@ export default function Home() {
     syncedDataSerializedRef.current = next;
     const t = window.setTimeout(() => { bumpLocalDataTimestamp(); }, 0);
     return () => window.clearTimeout(t);
-  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
+  }, [hasHydrated, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, frequentMeals, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   useEffect(() => {
     if (!hasHydrated || !REMOTE_SYNC_NETWORK || !remoteSyncOk) return;
@@ -466,7 +477,7 @@ export default function Home() {
     pushTimerRef.current = setTimeout(() => {
       pushTimerRef.current = null;
       const snap = buildSnapshot({
-        settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog,
+        settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, frequentMeals,
         preferences: {
           progressionHorizonWeeks, customExercisesByTemplate,
           exerciseOrderByTemplate, excludedPlanExercises,
@@ -483,7 +494,7 @@ export default function Home() {
       })();
     }, 1200);
     return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
-  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
+  }, [hasHydrated, remoteSyncOk, sessionUserId, sessionStatus, settings, trainingLog, periodLog, profile, measurementLog, stepsLog, mealsLog, frequentMeals, progressionHorizonWeeks, customExercisesByTemplate, exerciseOrderByTemplate, excludedPlanExercises]);
 
   // ── Remote sync: plans pull (dedicated endpoint) ──────────────────────────
   useEffect(() => {
@@ -623,6 +634,9 @@ export default function Home() {
     // During deficit, push protein to the top of the range to preserve lean mass
     return weightGoal === "loss" ? { ...base, target: base.max } : base;
   }, [profile.weightKg, weightGoal]);
+
+  const kcalTarget = profile.dailyKcalTarget ?? targetCalories;
+  const proteinTargetG = profile.dailyProteinTargetG ?? proteinDay.target;
 
   const weightGoalHint = useMemo(() => {
     const cur = profile.weightKg;
@@ -848,9 +862,11 @@ export default function Home() {
     [mealsLog, hasHydrated],
   );
 
-  const dietStats = useMemo(
-    () => computeDietStats(hasHydrated ? mealsLog : []),
-    [mealsLog, hasHydrated],
+  const rolling7 = useMemo(() => rollingAverages(dietDays, 7), [dietDays]);
+
+  const weightTrend = useMemo(
+    () => computeWeightTrend(hasHydrated ? measurementLog : []),
+    [measurementLog, hasHydrated],
   );
 
   const sortedStepsLog = useMemo(
@@ -1231,7 +1247,48 @@ export default function Home() {
         ...cur,
       ]);
     }
+    if (meals.saveAsFrequent && name) {
+      const alreadySaved = frequentMeals.some(
+        (item) => item.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (!alreadySaved) {
+        saveFrequentMeal({
+          id: crypto.randomUUID(),
+          name,
+          kcal,
+          proteinG,
+          meal: meals.mealTypeInput,
+        });
+      }
+    }
     meals.resetMealFields();
+  }
+
+  function quickAddFrequentMeal(frequent: FrequentMeal) {
+    if (meals.mealDateInput === DEFAULT_ISO_DATE) return;
+    setMealsLog((cur) => [
+      {
+        id: crypto.randomUUID(),
+        date: meals.mealDateInput,
+        meal: frequent.meal ?? meals.mealTypeInput,
+        name: frequent.name,
+        kcal: frequent.kcal,
+        proteinG: frequent.proteinG,
+      },
+      ...cur,
+    ]);
+  }
+
+  function saveFrequentMeal(frequent: FrequentMeal) {
+    setFrequentMeals((cur) =>
+      cur.some((item) => item.id === frequent.id)
+        ? cur.map((item) => (item.id === frequent.id ? frequent : item))
+        : [...cur, frequent],
+    );
+  }
+
+  function removeFrequentMeal(id: string) {
+    setFrequentMeals((cur) => cur.filter((item) => item.id !== id));
   }
 
   function removeMealEntry(id: string) {
@@ -1914,13 +1971,20 @@ export default function Home() {
       <section className={activeView === "nutricion" ? "" : "hidden"}>
         <DietCard
           meals={meals}
-          stats={dietStats}
           days={dietDays}
-          targetCalories={targetCalories}
-          proteinTarget={proteinDay.target}
+          frequentMeals={frequentMeals}
+          rolling7={rolling7}
+          weightTrend={weightTrend}
+          kcalTarget={kcalTarget}
+          proteinTarget={proteinTargetG}
+          targetWeightKg={profile.targetWeightKg ?? null}
+          currentWeightKg={profile.weightKg}
           hasHydrated={hasHydrated}
           onSave={saveMealEntry}
           onRemove={removeMealEntry}
+          onQuickAdd={quickAddFrequentMeal}
+          onSaveFrequent={saveFrequentMeal}
+          onRemoveFrequent={removeFrequentMeal}
         />
       </section>
 
@@ -2031,6 +2095,36 @@ export default function Home() {
             )}
           </div>
           <label className="field">
+            <span>Objetivo kcal/día</span>
+            <input
+              type="number"
+              min={800}
+              max={5000}
+              step={10}
+              value={profile.dailyKcalTarget ?? ""}
+              placeholder={String(targetCalories)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setProfile((p) => ({ ...p, dailyKcalTarget: v === "" ? null : Number(v) }));
+              }}
+            />
+          </label>
+          <label className="field">
+            <span>Objetivo proteína (g/día)</span>
+            <input
+              type="number"
+              min={40}
+              max={300}
+              step={1}
+              value={profile.dailyProteinTargetG ?? ""}
+              placeholder={String(proteinDay.target)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setProfile((p) => ({ ...p, dailyProteinTargetG: v === "" ? null : Number(v) }));
+              }}
+            />
+          </label>
+          <label className="field">
             <span>Plazo al objetivo (semanas)</span>
             <input
               type="number"
@@ -2076,26 +2170,23 @@ export default function Home() {
             <p className="metric-value-small">{bmr} kcal/día</p>
           </article>
           <article className="metric-card">
-            <p className="metric-label">
-              {weightGoal === "loss"
-                ? "Objetivo calórico (déficit)"
-                : weightGoal === "gain"
-                  ? "Objetivo calórico (superávit)"
-                  : "Gasto mantenimiento"}
-            </p>
+            <p className="metric-label">Objetivo calórico</p>
             <p className="metric-value-small">
-              {targetCalories} kcal/día
-              {weightGoal !== "maintenance" && (
-                <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.4rem" }}>
-                  (mant. {maintenanceTdee}{calorieAdjustment > 0 ? " +" : " "}{calorieAdjustment})
-                </span>
-              )}
+              {kcalTarget} kcal/día
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.4rem" }}>
+                {profile.dailyKcalTarget != null
+                  ? `(cálculo por TDEE: ${targetCalories})`
+                  : `(mant. ${maintenanceTdee}${calorieAdjustment > 0 ? " +" : " "}${calorieAdjustment})`}
+              </span>
             </p>
           </article>
           <article className="metric-card">
             <p className="metric-label">Proteína diaria</p>
             <p className="metric-value-small">
-              {proteinDay.min}–{proteinDay.max} g (obj. ~{proteinDay.target} g)
+              {proteinTargetG} g/día
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.4rem" }}>
+                (rango {proteinDay.min}–{proteinDay.max} g)
+              </span>
             </p>
           </article>
         </div>
@@ -2125,7 +2216,7 @@ export default function Home() {
             </thead>
             <tbody>
               {sessionNutritionByTemplate.map((row) => {
-                const totals = dailyTotalOnTrainingDay(targetCalories, row);
+                const totals = dailyTotalOnTrainingDay(kcalTarget, row);
                 return (
                   <tr key={row.templateId}>
                     <td>{row.name}</td>

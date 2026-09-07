@@ -882,3 +882,164 @@ textarea {
   border-radius: 0.4rem;
   margin: 0.75rem 0;
 }
+
+.diet-today {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(140deg, #fff 0%, #f5f3ff 100%);
+}
+
+.diet-today-date {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+
+.diet-goal-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.diet-goal-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.diet-goal-value .diet-goal-target {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.diet-goal-remaining {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.diet-goal-remaining.is-over {
+  color: #dc2626;
+}
+
+.progress-track {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 0.4rem 0 0.25rem;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.progress-fill.is-over {
+  background: #dc2626;
+}
+
+.diet-weight-line {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.quick-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.quick-add-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-height: 2.25rem;
+}
+
+.quick-add-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.quick-add-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-add-chip .quick-add-kcal {
+  color: var(--muted);
+}
+
+.meal-group {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  background: #fff;
+}
+
+.meal-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.meal-group-title {
+  font-weight: 700;
+}
+
+.meal-group-kcal {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.diet-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.diet-entry:first-child {
+  border-top: none;
+  margin-top: 0.35rem;
+}
+
+.diet-entry-name {
+  font-size: 0.9rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.diet-entry-protein {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.diet-entry-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.diet-entry-actions {
+  display: flex;
+  gap: 0.35rem;
+}

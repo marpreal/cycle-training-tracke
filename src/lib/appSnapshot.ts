@@ -4,6 +4,7 @@ import {
   defaultSettings,
   DEFAULT_ISO_DATE,
   type BodyMeasurementRecord,
+  type FrequentMeal,
   MEAL_LABELS,
   type MealRecord,
   type PeriodRecord,
@@ -13,6 +14,7 @@ import {
   type TrainingPlan,
   type TrainingRecord,
   type UserProfile,
+  withCurrentNutritionTargets,
 } from "@/lib/appTypes";
 
 export type AppSnapshotV1 = {
@@ -25,6 +27,7 @@ export type AppSnapshotV1 = {
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
   mealsLog?: MealRecord[];
+  frequentMeals?: FrequentMeal[];
   trainingPlans?: TrainingPlan[];
   /** Preferencias UI que antes no iban a localStorage. */
   preferences?: {
@@ -46,6 +49,7 @@ export function buildSnapshot(parts: {
   measurementLog: BodyMeasurementRecord[];
   stepsLog?: StepsRecord[];
   mealsLog?: MealRecord[];
+  frequentMeals?: FrequentMeal[];
   trainingPlans?: TrainingPlan[];
   preferences?: AppSnapshotV1["preferences"];
 }): AppSnapshotV1 {
@@ -146,6 +150,20 @@ function isStepsRecord(x: unknown): x is StepsRecord {
   );
 }
 
+function isFrequentMeal(x: unknown): x is FrequentMeal {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.name === "string" &&
+    typeof o.kcal === "number" &&
+    Number.isFinite(o.kcal) &&
+    o.kcal >= 0 &&
+    (o.proteinG == null || typeof o.proteinG === "number") &&
+    (o.meal == null || (typeof o.meal === "string" && o.meal in MEAL_LABELS))
+  );
+}
+
 function isMealRecord(x: unknown): x is MealRecord {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
@@ -175,6 +193,8 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   if (!Array.isArray(o.measurementLog) || !o.measurementLog.every(isBodyMeasurementRecord)) return null;
   if (o.stepsLog != null && (!Array.isArray(o.stepsLog) || !o.stepsLog.every(isStepsRecord))) return null;
   if (o.mealsLog != null && (!Array.isArray(o.mealsLog) || !o.mealsLog.every(isMealRecord))) return null;
+  if (o.frequentMeals != null && (!Array.isArray(o.frequentMeals) || !o.frequentMeals.every(isFrequentMeal)))
+    return null;
 
   let preferences: AppSnapshotV1["preferences"];
   if (o.preferences != null && typeof o.preferences === "object") {
@@ -202,7 +222,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
     settings = { ...settings, lastPeriodStart: todayIsoClient() };
   }
 
-  let profile = { ...defaultProfile, ...o.profile };
+  let profile = withCurrentNutritionTargets({ ...defaultProfile, ...o.profile });
   if (!profile.trainingBlockStart || profile.trainingBlockStart === DEFAULT_ISO_DATE) {
     profile = { ...profile, trainingBlockStart: todayIsoClient() };
   }
@@ -218,6 +238,7 @@ export function parseAppSnapshot(raw: unknown): AppSnapshotV1 | null {
   };
   if (Array.isArray(o.stepsLog)) out.stepsLog = o.stepsLog;
   if (Array.isArray(o.mealsLog)) out.mealsLog = o.mealsLog;
+  if (Array.isArray(o.frequentMeals)) out.frequentMeals = o.frequentMeals;
   if (preferences) out.preferences = preferences;
   if (Array.isArray(o.trainingPlans)) {
     out.trainingPlans = (o.trainingPlans as TrainingPlan[]).filter(
