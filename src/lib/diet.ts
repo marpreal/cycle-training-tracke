@@ -103,6 +103,52 @@ export function findDay(days: DietDay[], date: string): DietDay | undefined {
   return days.find((day) => day.date === date);
 }
 
+/** Un día natural del mes; `logged` distingue "0 kcal apuntadas" de "sin registrar". */
+export type MonthDay = {
+  date: string;
+  kcal: number;
+  proteinG: number;
+  logged: boolean;
+};
+
+export type MonthSummary = {
+  daysInMonth: number;
+  daysLogged: number;
+  /** Media sobre los días registrados, no sobre el mes entero. */
+  avgKcal: number;
+  daysOverTarget: number;
+};
+
+/** Todos los días del mes, incluidos los que no tienen nada apuntado. */
+export function monthDietDays(days: DietDay[], year: number, monthIndex: number): MonthDay[] {
+  const byDate = new Map(days.map((day) => [day.date, day]));
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const out: MonthDay[] = [];
+  for (let day = 1; day <= lastDay; day += 1) {
+    const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const entry = byDate.get(date);
+    out.push({
+      date,
+      kcal: entry?.kcal ?? 0,
+      proteinG: entry?.proteinG ?? 0,
+      logged: entry != null,
+    });
+  }
+  return out;
+}
+
+export function summarizeMonth(monthDays: MonthDay[], kcalTarget: number): MonthSummary {
+  const logged = monthDays.filter((day) => day.logged);
+  const total = logged.reduce((sum, day) => sum + day.kcal, 0);
+  return {
+    daysInMonth: monthDays.length,
+    daysLogged: logged.length,
+    avgKcal: logged.length > 0 ? Math.round(total / logged.length) : 0,
+    daysOverTarget:
+      kcalTarget > 0 ? logged.filter((day) => day.kcal > kcalTarget).length : 0,
+  };
+}
+
 export function targetProgress(consumed: number, target: number): TargetProgress {
   const safeTarget = target > 0 ? target : 0;
   const percent = safeTarget > 0 ? (consumed / safeTarget) * 100 : 0;

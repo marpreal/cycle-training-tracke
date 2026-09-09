@@ -315,7 +315,6 @@ export function PlanCard({ plans, onAddPlan, onDeletePlan, onRenamePlan }: PlanC
             /* Content comes from a user-uploaded file on their own device */
             <div
               className="plan-html-content"
-              // eslint-disable-next-line react/no-danger
               dangerouslySetInnerHTML={{ __html: activePlan.content }}
             />
           ) : (

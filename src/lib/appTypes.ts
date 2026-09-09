@@ -121,7 +121,29 @@ export type UserProfile = {
   targetsVersion?: number;
 };
 
-export type ActiveView = "regla" | "entreno" | "planes" | "nutricion" | "espalda";
+export type ActiveView = "regla" | "entreno" | "planes" | "nutricion" | "dieta" | "espalda";
+
+export const ACTIVE_VIEWS: ActiveView[] = [
+  "regla",
+  "entreno",
+  "planes",
+  "nutricion",
+  "dieta",
+  "espalda",
+];
+
+export const ACTIVE_VIEW_LABELS: Record<ActiveView, string> = {
+  regla: "Regla",
+  entreno: "Ejercicio",
+  planes: "Planes",
+  nutricion: "Peso y nutrición",
+  dieta: "Dieta",
+  espalda: "Espalda",
+};
+
+export function isActiveView(value: unknown): value is ActiveView {
+  return typeof value === "string" && (ACTIVE_VIEWS as string[]).includes(value);
+}
 
 export type TrainingPlan = {
   id: string;

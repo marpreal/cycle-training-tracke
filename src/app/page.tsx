@@ -47,7 +47,7 @@ import type {
   TrainingRecord,
   UserProfile,
 } from "@/lib/appTypes";
-import { FLOW_LABELS } from "@/lib/appTypes";
+import { ACTIVE_VIEW_LABELS, ACTIVE_VIEWS, FLOW_LABELS, isActiveView } from "@/lib/appTypes";
 import {
   BODY_MEASUREMENTS_KEY,
   defaultProfile,
@@ -115,6 +115,8 @@ import { PeriodDelaysCard } from "@/components/regla/PeriodDelaysCard";
 import { WeeklyConsistencyCard } from "@/components/entreno/WeeklyConsistencyCard";
 import { computeWeeklyConsistency } from "@/lib/trainingWeeks";
 import { DietCard } from "@/components/nutricion/DietCard";
+import { DietInsightsCard } from "@/components/nutricion/DietInsightsCard";
+import { WeightChartCard } from "@/components/nutricion/WeightChartCard";
 import { computeWeightTrend, groupMealsByDate, rollingAverages } from "@/lib/diet";
 
 const REMOTE_SYNC_UI =
@@ -216,7 +218,7 @@ export default function Home() {
   // ── Initialisation ────────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem("active-view-v1");
-    if (saved === "regla" || saved === "entreno" || saved === "planes" || saved === "nutricion" || saved === "espalda") {
+    if (isActiveView(saved)) {
       setActiveViewRaw(saved);
     }
   }, []);
@@ -1329,22 +1331,14 @@ export default function Home() {
 
       {/* Tab navigation */}
       <section className="view-tabs">
-        {(["regla", "entreno", "planes", "nutricion", "espalda"] as const).map((view) => (
+        {ACTIVE_VIEWS.map((view) => (
           <button
             key={view}
             type="button"
             className={`view-tab ${activeView === view ? "is-active" : ""}`}
             onClick={() => setActiveView(view)}
           >
-            {view === "regla"
-              ? "Regla"
-              : view === "entreno"
-                ? "Ejercicio"
-                : view === "planes"
-                  ? "Planes"
-                  : view === "nutricion"
-                    ? "Peso y nutrición"
-                    : "Espalda"}
+            {ACTIVE_VIEW_LABELS[view]}
           </button>
         ))}
       </section>
@@ -1770,6 +1764,17 @@ export default function Home() {
           ) : null}
         </article>
 
+      </section>
+
+      <section className={activeView === "nutricion" ? "" : "hidden"}>
+        <WeightChartCard
+          measurements={measurementLog}
+          targetWeightKg={profile.targetWeightKg ?? null}
+          hasHydrated={hasHydrated}
+        />
+      </section>
+
+      <section className={`grid gap-6 lg:grid-cols-2 ${activeView === "nutricion" ? "" : "hidden"}`}>
         <article className="card">
           <h2 className="section-title">Histórico de peso</h2>
           {weightGoalHint ? <p className="muted mb-3 text-sm">{weightGoalHint}</p> : null}
@@ -1967,8 +1972,8 @@ export default function Home() {
         <TemplatesCard />
       </section>
 
-      {/* ── Dieta: diario de comidas ─────────────────────────────────────────── */}
-      <section className={activeView === "nutricion" ? "" : "hidden"}>
+      {/* ── DIETA view: diario de comidas ────────────────────────────────────── */}
+      <section className={activeView === "dieta" ? "" : "hidden"}>
         <DietCard
           meals={meals}
           days={dietDays}
@@ -1985,6 +1990,20 @@ export default function Home() {
           onQuickAdd={quickAddFrequentMeal}
           onSaveFrequent={saveFrequentMeal}
           onRemoveFrequent={removeFrequentMeal}
+        />
+      </section>
+
+      <section className={activeView === "dieta" ? "" : "hidden"}>
+        <DietInsightsCard
+          days={dietDays}
+          kcalTarget={kcalTarget}
+          selectedDate={meals.mealDateInput}
+          todayIso={meals.todayIso}
+          hasHydrated={hasHydrated}
+          onSelectDate={(iso) => {
+            meals.setMealDateInput(iso);
+            meals.setShowDateField(true);
+          }}
         />
       </section>
 
